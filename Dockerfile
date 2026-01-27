@@ -19,4 +19,4 @@ ENV STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
 EXPOSE 8501
 
 # 启动命令
-CMD ["streamlit", "run", "app.py", "--server.baseUrlPath=/streamlit"]
+CMD ["streamlit", "run", "app.py"]
