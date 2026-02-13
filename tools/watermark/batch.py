@@ -1,0 +1,144 @@
+"""
+批量去水印入口
+
+支持:
+  - 批量 OpenCV 去水印 (同一水印位置)
+  - 批量 LaMA 去水印 (同一水印位置)
+"""
+from pathlib import Path
+
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+
+from config import INPUT_DIR, ensure_dirs
+from tools.common import scan_videos, batch_process, print_summary, logger
+from tools.watermark.opencv_inpaint import remove_watermark_opencv
+
+
+def _batch_opencv_worker(video_path: Path, **kwargs) -> dict:
+    """批量 OpenCV 去水印 worker"""
+    return remove_watermark_opencv(video_path, **kwargs)
+
+
+def _batch_lama_worker(video_path: Path, **kwargs) -> dict:
+    """批量 LaMA 去水印 worker"""
+    from tools.watermark.lama_remover import remove_watermark_lama
+    return remove_watermark_lama(video_path, **kwargs)
+
+
+def batch_remove_watermark_opencv(
+    input_dir: str | Path | None = None,
+    regions: list[tuple[int, int, int, int]] | None = None,
+    mask_path: str | Path | None = None,
+    method: str = "telea",
+    inpaint_radius: int = 5,
+    feather: int = 3,
+) -> list[dict]:
+    """
+    批量去水印 (OpenCV) — 对 input 目录下所有视频应用相同水印区域
+
+    Args:
+        input_dir: 输入目录
+        regions: 水印区域列表 [(x1,y1,x2,y2), ...]
+        mask_path: mask 图片路径
+        method: 修复算法
+        inpaint_radius: 修复半径
+        feather: 边缘羽化
+    """
+    ensure_dirs()
+    videos = scan_videos(input_dir or INPUT_DIR)
+    results = batch_process(
+        videos,
+        _batch_opencv_worker,
+        desc="批量去水印 (OpenCV)",
+        regions=regions,
+        mask_path=mask_path,
+        method=method,
+        inpaint_radius=inpaint_radius,
+        feather=feather,
+    )
+    print_summary(results)
+    return results
+
+
+def batch_remove_watermark_lama(
+    input_dir: str | Path | None = None,
+    regions: list[tuple[int, int, int, int]] | None = None,
+    mask_path: str | Path | None = None,
+    model: str = "lama",
+    device: str = "mps",
+    feather: int = 5,
+) -> list[dict]:
+    """
+    批量去水印 (LaMA) — 对 input 目录下所有视频应用相同水印区域
+
+    Args:
+        input_dir: 输入目录
+        regions: 水印区域列表
+        mask_path: mask 图片路径
+        model: 模型名称
+        device: 推理设备
+        feather: 边缘羽化
+    """
+    ensure_dirs()
+    videos = scan_videos(input_dir or INPUT_DIR)
+    results = batch_process(
+        videos,
+        _batch_lama_worker,
+        desc="批量去水印 (LaMA)",
+        regions=regions,
+        mask_path=mask_path,
+        model=model,
+        device=device,
+        feather=feather,
+    )
+    print_summary(results)
+    return results
+
+
+# ============================================================
+# CLI 入口
+# ============================================================
+if __name__ == "__main__":
+    import argparse
+
+    def parse_region(s: str) -> tuple[int, int, int, int]:
+        parts = [int(x.strip()) for x in s.split(",")]
+        if len(parts) != 4:
+            raise argparse.ArgumentTypeError("区域格式: x1,y1,x2,y2")
+        return tuple(parts)
+
+    parser = argparse.ArgumentParser(description="批量去水印")
+    parser.add_argument("-i", "--input-dir", default=str(INPUT_DIR), help="输入视频目录")
+    parser.add_argument("-r", "--region", type=parse_region, action="append", help="水印区域 (x1,y1,x2,y2)")
+    parser.add_argument("-m", "--mask", help="mask 图片路径")
+
+    sub = parser.add_subparsers(dest="engine", required=True)
+
+    # OpenCV
+    opencv_p = sub.add_parser("opencv", help="使用 OpenCV inpaint")
+    opencv_p.add_argument("--method", choices=["telea", "ns"], default="telea")
+    opencv_p.add_argument("--radius", type=int, default=5)
+    opencv_p.add_argument("--feather", type=int, default=3)
+
+    # LaMA
+    lama_p = sub.add_parser("lama", help="使用 LaMA 深度学习")
+    lama_p.add_argument("--model", default="lama")
+    lama_p.add_argument("--device", default="mps", choices=["mps", "cpu", "cuda"])
+    lama_p.add_argument("--feather", type=int, default=5)
+
+    args = parser.parse_args()
+
+    if not args.region and not args.mask:
+        parser.error("必须指定 --region 或 --mask")
+
+    if args.engine == "opencv":
+        batch_remove_watermark_opencv(
+            args.input_dir, args.region, args.mask,
+            args.method, args.radius, args.feather,
+        )
+    elif args.engine == "lama":
+        batch_remove_watermark_lama(
+            args.input_dir, args.region, args.mask,
+            args.model, args.device, args.feather,
+        )

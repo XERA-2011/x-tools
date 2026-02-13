@@ -1,0 +1,160 @@
+"""
+批量内容截取入口
+
+支持批量操作:
+  - 批量截取视频片段 (相同时间范围)
+  - 批量提取关键帧
+  - 批量按间隔提取帧
+"""
+from pathlib import Path
+
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+
+from config import INPUT_DIR, ensure_dirs
+from tools.common import scan_videos, batch_process, print_summary, logger
+from tools.extract.clip_extractor import extract_clip
+from tools.extract.keyframe_extractor import (
+    extract_keyframes,
+    extract_frames_interval,
+    extract_frames_scene_change,
+)
+
+
+def _batch_clip_worker(video_path: Path, **kwargs) -> dict:
+    """批量截取 worker"""
+    return extract_clip(video_path, **kwargs)
+
+
+def _batch_keyframes_worker(video_path: Path, **kwargs) -> dict:
+    """批量关键帧 worker"""
+    return extract_keyframes(video_path, **kwargs)
+
+
+def _batch_interval_worker(video_path: Path, **kwargs) -> dict:
+    """批量间隔帧 worker"""
+    return extract_frames_interval(video_path, **kwargs)
+
+
+def _batch_scene_worker(video_path: Path, **kwargs) -> dict:
+    """批量场景帧 worker"""
+    return extract_frames_scene_change(video_path, **kwargs)
+
+
+def batch_extract_clips(
+    input_dir: str | Path | None = None,
+    start: str = "00:00:00",
+    end: str | None = None,
+    duration: str | None = None,
+    reencode: bool = False,
+) -> list[dict]:
+    """
+    批量截取视频片段 — 对 input 目录下所有视频应用相同的截取参数
+
+    Args:
+        input_dir: 输入目录 (默认: config.INPUT_DIR)
+        start: 开始时间
+        end: 结束时间
+        duration: 持续时长
+        reencode: 是否重新编码
+    """
+    ensure_dirs()
+    videos = scan_videos(input_dir or INPUT_DIR)
+    results = batch_process(
+        videos,
+        _batch_clip_worker,
+        desc="批量截取片段",
+        start=start, end=end, duration=duration, reencode=reencode,
+    )
+    print_summary(results)
+    return results
+
+
+def batch_extract_keyframes(
+    input_dir: str | Path | None = None,
+) -> list[dict]:
+    """批量提取关键帧"""
+    ensure_dirs()
+    videos = scan_videos(input_dir or INPUT_DIR)
+    results = batch_process(
+        videos,
+        _batch_keyframes_worker,
+        desc="批量提取关键帧",
+    )
+    print_summary(results)
+    return results
+
+
+def batch_extract_interval(
+    input_dir: str | Path | None = None,
+    interval: float = 1.0,
+) -> list[dict]:
+    """批量按间隔提取帧"""
+    ensure_dirs()
+    videos = scan_videos(input_dir or INPUT_DIR)
+    results = batch_process(
+        videos,
+        _batch_interval_worker,
+        desc="批量间隔提取帧",
+        interval=interval,
+    )
+    print_summary(results)
+    return results
+
+
+def batch_extract_scenes(
+    input_dir: str | Path | None = None,
+    threshold: float = 0.3,
+) -> list[dict]:
+    """批量按场景切换提取帧"""
+    ensure_dirs()
+    videos = scan_videos(input_dir or INPUT_DIR)
+    results = batch_process(
+        videos,
+        _batch_scene_worker,
+        desc="批量场景帧提取",
+        threshold=threshold,
+    )
+    print_summary(results)
+    return results
+
+
+# ============================================================
+# CLI 入口
+# ============================================================
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="批量内容截取")
+    parser.add_argument("-i", "--input-dir", default=str(INPUT_DIR), help="输入视频目录")
+
+    sub = parser.add_subparsers(dest="mode", required=True)
+
+    # 批量截取片段
+    clip_p = sub.add_parser("clip", help="批量截取片段")
+    clip_p.add_argument("-s", "--start", required=True, help="开始时间")
+    clip_p.add_argument("-e", "--end", help="结束时间")
+    clip_p.add_argument("-d", "--duration", help="持续时长")
+    clip_p.add_argument("--reencode", action="store_true", help="重新编码")
+
+    # 批量关键帧
+    sub.add_parser("keyframes", help="批量提取关键帧")
+
+    # 批量间隔帧
+    int_p = sub.add_parser("interval", help="批量按间隔提取帧")
+    int_p.add_argument("--seconds", type=float, default=1.0, help="间隔 (秒)")
+
+    # 批量场景帧
+    scene_p = sub.add_parser("scene", help="批量按场景切换提取帧")
+    scene_p.add_argument("--threshold", type=float, default=0.3, help="阈值 (0-1)")
+
+    args = parser.parse_args()
+
+    if args.mode == "clip":
+        batch_extract_clips(args.input_dir, args.start, args.end, args.duration, args.reencode)
+    elif args.mode == "keyframes":
+        batch_extract_keyframes(args.input_dir)
+    elif args.mode == "interval":
+        batch_extract_interval(args.input_dir, args.seconds)
+    elif args.mode == "scene":
+        batch_extract_scenes(args.input_dir, args.threshold)
