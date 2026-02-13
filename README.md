@@ -8,8 +8,8 @@
 |------|------|------|
 | `tools/extract/` | 视频片段截取 / 关键帧提取 | ✅ 可用 |
 | `tools/watermark/` | 视频去水印 | ✅ 可用 |
-| `tools/upscale/` | 视频高清重置 (超分辨率) | 🔲 待实现 |
-| `tools/interpolation/` | 视频帧数补充 (插帧) | 🔲 待实现 |
+| `tools/upscale/` | 视频高清重置 (超分辨率) | ✅ 可用 |
+| `tools/interpolation/` | 视频帧数补充 (插帧) | ✅ 可用 |
 
 ## 🛠️ 环境配置
 
@@ -81,6 +81,38 @@ python tools/watermark/batch.py -r 10,10,200,60 opencv
 python tools/watermark/batch.py -r 10,10,200,60 lama
 ```
 
+### 视频高清重置
+```bash
+# FFmpeg 传统放大 2x (lanczos 插值)
+python tools/upscale/ffmpeg_scale.py video.mp4 -s 2
+
+# FFmpeg 放大到指定分辨率
+python tools/upscale/ffmpeg_scale.py video.mp4 -W 1920
+
+# Real-ESRGAN AI 超分 (需安装: pip install realesrgan torch torchvision basicsr)
+python tools/upscale/realesrgan.py video.mp4 -s 2
+
+# 批量放大
+python tools/upscale/batch.py ffmpeg -s 2
+python tools/upscale/batch.py realesrgan -s 2
+```
+
+### 视频帧数补充
+```bash
+# FFmpeg 运动补偿插帧 (24fps → 60fps)
+python tools/interpolation/ffmpeg_minterp.py video.mp4 -t 60
+
+# FFmpeg 插帧 - blend 模式 (更快但有残影)
+python tools/interpolation/ffmpeg_minterp.py video.mp4 -t 60 --mode blend
+
+# RIFE AI 插帧 (需安装: pip install rife-ncnn-vulkan-python)
+python tools/interpolation/rife.py video.mp4 -m 2
+
+# 批量插帧
+python tools/interpolation/batch.py ffmpeg -t 60
+python tools/interpolation/batch.py rife -m 2
+```
+
 ## 📁 目录结构
 
 ```
@@ -96,8 +128,14 @@ x-tools/
 │   │   ├── opencv_inpaint.py     #   OpenCV 传统修复
 │   │   ├── lama_remover.py       #   LaMA 深度学习修复
 │   │   └── batch.py              #   批量去水印入口
-│   ├── upscale/                  # 高清重置 (待实现)
-│   └── interpolation/            # 帧数补充 (待实现)
+│   ├── upscale/                  # 高清重置
+│   │   ├── realesrgan.py         #   Real-ESRGAN AI 超分
+│   │   ├── ffmpeg_scale.py       #   FFmpeg 传统放大
+│   │   └── batch.py              #   批量高清重置入口
+│   └── interpolation/            # 帧数补充
+│       ├── rife.py               #   RIFE AI 插帧
+│       ├── ffmpeg_minterp.py     #   FFmpeg 运动补偿插帧
+│       └── batch.py              #   批量插帧入口
 ├── input/                        # 放入待处理的视频
 └── output/                       # 处理结果输出
 ```
