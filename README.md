@@ -1,150 +1,99 @@
-# x-tools
+# x-tools 视频处理工具箱
 
-视频处理实验工具箱 — 基于 Python + FFmpeg
+一个简单易用的批处理工具箱，专注于视频修复与增强。
 
-## ✨ 功能模块
+**核心功能**: 去水印 (OpenCV/LaMA 深度学习)、高清重置 (Real-ESRGAN/FFmpeg)、关键帧提取、内容截取、帧数补充 (RIFE)。
 
-| 模块 | 功能 | 状态 |
-|------|------|------|
-| `tools/extract/` | 视频片段截取 / 关键帧提取 | ✅ 可用 |
-| `tools/watermark/` | 视频去水印 | ✅ 可用 |
-| `tools/upscale/` | 视频高清重置 (超分辨率) | ✅ 可用 |
-| `tools/interpolation/` | 视频帧数补充 (插帧) | ✅ 可用 |
+## � 快速开始 (30秒上手)
 
-## 🛠️ 环境配置
-
-> 需要: Python 3.10+, FFmpeg
+**1. 环境配置**
+需要 Python 3.10+ 和 FFmpeg。
 
 ```bash
-# 创建虚拟环境
+# 创建并激活环境
 python3 -m venv .venv
 source .venv/bin/activate
 
 # 安装依赖
 pip install -r requirements.txt
-
-# 退出环境
-deactivate
 ```
 
-确认 FFmpeg 已安装:
-```bash
-brew install ffmpeg   # macOS
-ffmpeg -version
-```
+**2. 运行交互式终端**
+无需记忆命令，通过箭头键选择功能：
 
-## 🚀 快速使用
-
-### 🖥️ 交互式终端 (推荐)
-无需记忆复杂命令，直接运行：
 ```bash
 python main.py
 ```
-通过箭头键选择功能模块、设置参数，支持批量处理。
 
-### 命令行工具
+支持：
+- 📂 **输入源灵活**: 自动扫描 `input/` 目录，或选择单个文件/任意文件夹。
+- 💧 **去水印**: 支持鼠标框选区域 (OpenCV 快速修复 / LaMA 深度学习无痕修复)。
+- 🆙 **高清重置**: 批量 2x/4x 放大 (使用 Real-ESRGAN AI 或 FFmpeg)。
+- ✂️ **内容提取**: 批量截取片段、提取关键帧。
 
-#### 视频片段截取
+---
+
+## 📚 命令行工具 (高级用法)
+
+如果你更喜欢 CLI 或需要集成到脚本中：
+
+### 1. 💧 视频去水印
+支持指定坐标 `x1,y1,x2,y2` 或 mask 图片。
+
 ```bash
-# 单文件: 截取 00:01:00 到 00:02:30
-python tools/extract/clip_extractor.py video.mp4 -s 00:01:00 -e 00:02:30
-
-# 单文件: 从 10 秒开始截取 30 秒
-python tools/extract/clip_extractor.py video.mp4 -s 10 -d 30
-
-# 批量: 对 input/ 下所有视频截取前 60 秒
-python tools/extract/batch.py -i input clip -s 0 -d 60
-```
-
-### 关键帧提取
-```bash
-# 提取 I-帧 (关键帧)
-python tools/extract/keyframe_extractor.py video.mp4 --keyframes
-
-# 每 2 秒提取一帧
-python tools/extract/keyframe_extractor.py video.mp4 --interval 2
-
-# 按场景切换提取 (阈值 0.3)
-python tools/extract/keyframe_extractor.py video.mp4 --scene 0.3
-
-# 批量: 提取所有视频的关键帧
-python tools/extract/batch.py -i input keyframes
-```
-
-### 视频去水印
-```bash
-# 单文件: 指定水印区域 (x1,y1,x2,y2)
+# OpenCV 快速模式 (坐标: 10,10,200,60)
 python tools/watermark/opencv_inpaint.py video.mp4 -r 10,10,200,60
 
-# 多个水印区域
-python tools/watermark/opencv_inpaint.py video.mp4 -r 10,10,200,60 -r 500,10,700,60
-
-# 使用 mask 图片 (白色=水印)
-python tools/watermark/opencv_inpaint.py video.mp4 -m mask.png
-
-# LaMA 深度学习 (需额外安装: pip install iopaint torch torchvision)
+# LaMA 深度学习模式 (效果最好, 自动下载模型)
 python tools/watermark/lama_remover.py video.mp4 -r 10,10,200,60
 
-# 批量: 对 input/ 下所有视频去除相同位置的水印
-python tools/watermark/batch.py -r 10,10,200,60 opencv
-python tools/watermark/batch.py -r 10,10,200,60 lama
+# 批量处理 input/ 下所有视频
+python tools/watermark/batch.py -r 625,1220,695,1260 lama
 ```
 
-### 视频高清重置
+### 2. 🆙 视频高清重置 (超分辨率)
 ```bash
-# FFmpeg 传统放大 2x (lanczos 插值)
-python tools/upscale/ffmpeg_scale.py video.mp4 -s 2
-
-# FFmpeg 放大到指定分辨率
-python tools/upscale/ffmpeg_scale.py video.mp4 -W 1920
-
-# Real-ESRGAN AI 超分 (需安装: pip install realesrgan torch torchvision basicsr)
+# Real-ESRGAN AI 超分 (2倍放大)
 python tools/upscale/realesrgan.py video.mp4 -s 2
 
-# 批量放大
-python tools/upscale/batch.py ffmpeg -s 2
-python tools/upscale/batch.py realesrgan -s 2
+# FFmpeg 传统放大 (速度快)
+python tools/upscale/ffmpeg_scale.py video.mp4 -s 2
 ```
 
-### 视频帧数补充
+### 3. ✂️ 内容截取与提取
 ```bash
-# FFmpeg 运动补偿插帧 (24fps → 60fps)
-python tools/interpolation/ffmpeg_minterp.py video.mp4 -t 60
+# 截取前 30 秒
+python tools/extract/clip_extractor.py video.mp4 -s 0 -d 30
 
-# FFmpeg 插帧 - blend 模式 (更快但有残影)
-python tools/interpolation/ffmpeg_minterp.py video.mp4 -t 60 --mode blend
-
-# RIFE AI 插帧 (需安装: pip install rife-ncnn-vulkan-python)
-python tools/interpolation/rife.py video.mp4 -m 2
-
-# 批量插帧
-python tools/interpolation/batch.py ffmpeg -t 60
-python tools/interpolation/batch.py rife -m 2
+# 提取所有关键帧 (I-Frame)
+python tools/extract/keyframe_extractor.py video.mp4 --keyframes
 ```
 
-## 📁 目录结构
+### 4. ⏯️ 帧数补充 (插帧)
+```bash
+# RIFE AI 插帧 (2倍帧率)
+python tools/interpolation/rife.py video.mp4 -m 2
+```
 
+---
+
+## �️ 目录结构
 ```
 x-tools/
-├── config.py                     # 全局配置
-├── tools/
-│   ├── common.py                 # 公共工具 (批量调度、日志)
-│   ├── extract/                  # 内容截取
-│   │   ├── clip_extractor.py     #   视频片段截取
-│   │   ├── keyframe_extractor.py #   关键帧提取
-│   │   └── batch.py              #   批量截取入口
-│   ├── watermark/                # 去水印
-│   │   ├── opencv_inpaint.py     #   OpenCV 传统修复
-│   │   ├── lama_remover.py       #   LaMA 深度学习修复
-│   │   └── batch.py              #   批量去水印入口
-│   ├── upscale/                  # 高清重置
-│   │   ├── realesrgan.py         #   Real-ESRGAN AI 超分
-│   │   ├── ffmpeg_scale.py       #   FFmpeg 传统放大
-│   │   └── batch.py              #   批量高清重置入口
-│   └── interpolation/            # 帧数补充
-│       ├── rife.py               #   RIFE AI 插帧
-│       ├── ffmpeg_minterp.py     #   FFmpeg 运动补偿插帧
-│       └── batch.py              #   批量插帧入口
-├── input/                        # 放入待处理的视频
-└── output/                       # 处理结果输出
+├── main.py                       # 🚀 交互式入口
+├── config.py                     # ⚙️ 全局配置
+├── input/                        # 📂 默认输入目录
+├── output/                       # 📂 默认输出目录
+└── tools/
+    ├── watermark/                # 去水印模块 (OpenCV, LaMA)
+    ├── upscale/                  # 超分模块 (Real-ESRGAN, FFmpeg)
+    ├── extract/                  # 提取模块 (截取, 关键帧)
+    └── interpolation/            # 插帧模块 (RIFE, FFmpeg)
 ```
+
+## 📦 依赖说明
+- **基础依赖**: `opencv-python`, `ffmpeg-python`, `rich`, `InquirerPy`
+- **AI 增强 (按需安装)**:
+  - 去水印 (LaMA): `torch`, `torchvision` (首次运行自动下载模型)
+  - 超分 (Real-ESRGAN): `basicsr`, `realesrgan`
+  - 插帧 (RIFE): `rife-ncnn-vulkan-python`
