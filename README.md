@@ -35,7 +35,16 @@ ffmpeg -version
 
 ## 🚀 快速使用
 
-### 视频片段截取
+### 🖥️ 交互式终端 (推荐)
+无需记忆复杂命令，直接运行：
+```bash
+python main.py
+```
+通过箭头键选择功能模块、设置参数，支持批量处理。
+
+### 命令行工具
+
+#### 视频片段截取
 ```bash
 # 单文件: 截取 00:01:00 到 00:02:30
 python tools/extract/clip_extractor.py video.mp4 -s 00:01:00 -e 00:02:30

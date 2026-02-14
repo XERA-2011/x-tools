@@ -28,6 +28,7 @@ def _batch_lama_worker(video_path: Path, **kwargs) -> dict:
 
 def batch_remove_watermark_opencv(
     input_dir: str | Path | None = None,
+    videos: list[Path] | None = None,
     regions: list[tuple[int, int, int, int]] | None = None,
     mask_path: str | Path | None = None,
     method: str = "telea",
@@ -46,7 +47,9 @@ def batch_remove_watermark_opencv(
         feather: 边缘羽化
     """
     ensure_dirs()
-    videos = scan_videos(input_dir or INPUT_DIR)
+    ensure_dirs()
+    if videos is None:
+        videos = scan_videos(input_dir or INPUT_DIR)
     results = batch_process(
         videos,
         _batch_opencv_worker,
@@ -63,9 +66,9 @@ def batch_remove_watermark_opencv(
 
 def batch_remove_watermark_lama(
     input_dir: str | Path | None = None,
+    videos: list[Path] | None = None,
     regions: list[tuple[int, int, int, int]] | None = None,
     mask_path: str | Path | None = None,
-    model: str = "lama",
     device: str = "mps",
     feather: int = 5,
 ) -> list[dict]:
@@ -81,14 +84,15 @@ def batch_remove_watermark_lama(
         feather: 边缘羽化
     """
     ensure_dirs()
-    videos = scan_videos(input_dir or INPUT_DIR)
+    ensure_dirs()
+    if videos is None:
+        videos = scan_videos(input_dir or INPUT_DIR)
     results = batch_process(
         videos,
         _batch_lama_worker,
         desc="批量去水印 (LaMA)",
         regions=regions,
         mask_path=mask_path,
-        model=model,
         device=device,
         feather=feather,
     )

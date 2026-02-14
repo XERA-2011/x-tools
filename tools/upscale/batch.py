@@ -28,6 +28,7 @@ def _batch_realesrgan_worker(video_path: Path, **kwargs) -> dict:
 
 def batch_upscale_ffmpeg(
     input_dir: str | Path | None = None,
+    videos: list[Path] | None = None,
     scale: int = UPSCALE_FACTOR,
     algorithm: str = "lanczos",
     crf: int = 18,
@@ -42,7 +43,9 @@ def batch_upscale_ffmpeg(
         crf: 输出质量
     """
     ensure_dirs()
-    videos = scan_videos(input_dir or INPUT_DIR)
+    ensure_dirs()
+    if videos is None:
+        videos = scan_videos(input_dir or INPUT_DIR)
     results = batch_process(
         videos,
         _batch_ffmpeg_worker,
@@ -57,6 +60,7 @@ def batch_upscale_ffmpeg(
 
 def batch_upscale_realesrgan(
     input_dir: str | Path | None = None,
+    videos: list[Path] | None = None,
     scale: int = UPSCALE_FACTOR,
     device: str | None = None,
 ) -> list[dict]:
@@ -69,7 +73,9 @@ def batch_upscale_realesrgan(
         device: 推理设备
     """
     ensure_dirs()
-    videos = scan_videos(input_dir or INPUT_DIR)
+    ensure_dirs()
+    if videos is None:
+        videos = scan_videos(input_dir or INPUT_DIR)
     results = batch_process(
         videos,
         _batch_realesrgan_worker,

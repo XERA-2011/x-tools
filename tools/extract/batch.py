@@ -43,6 +43,7 @@ def _batch_scene_worker(video_path: Path, **kwargs) -> dict:
 
 def batch_extract_clips(
     input_dir: str | Path | None = None,
+    videos: list[Path] | None = None,
     start: str = "00:00:00",
     end: str | None = None,
     duration: str | None = None,
@@ -59,7 +60,9 @@ def batch_extract_clips(
         reencode: 是否重新编码
     """
     ensure_dirs()
-    videos = scan_videos(input_dir or INPUT_DIR)
+    ensure_dirs()
+    if videos is None:
+        videos = scan_videos(input_dir or INPUT_DIR)
     results = batch_process(
         videos,
         _batch_clip_worker,
@@ -72,10 +75,13 @@ def batch_extract_clips(
 
 def batch_extract_keyframes(
     input_dir: str | Path | None = None,
+    videos: list[Path] | None = None,
 ) -> list[dict]:
     """批量提取关键帧"""
     ensure_dirs()
-    videos = scan_videos(input_dir or INPUT_DIR)
+    ensure_dirs()
+    if videos is None:
+        videos = scan_videos(input_dir or INPUT_DIR)
     results = batch_process(
         videos,
         _batch_keyframes_worker,
@@ -87,11 +93,14 @@ def batch_extract_keyframes(
 
 def batch_extract_interval(
     input_dir: str | Path | None = None,
+    videos: list[Path] | None = None,
     interval: float = 1.0,
 ) -> list[dict]:
     """批量按间隔提取帧"""
     ensure_dirs()
-    videos = scan_videos(input_dir or INPUT_DIR)
+    ensure_dirs()
+    if videos is None:
+        videos = scan_videos(input_dir or INPUT_DIR)
     results = batch_process(
         videos,
         _batch_interval_worker,
@@ -104,11 +113,14 @@ def batch_extract_interval(
 
 def batch_extract_scenes(
     input_dir: str | Path | None = None,
+    videos: list[Path] | None = None,
     threshold: float = 0.3,
 ) -> list[dict]:
     """批量按场景切换提取帧"""
     ensure_dirs()
-    videos = scan_videos(input_dir or INPUT_DIR)
+    ensure_dirs()
+    if videos is None:
+        videos = scan_videos(input_dir or INPUT_DIR)
     results = batch_process(
         videos,
         _batch_scene_worker,
