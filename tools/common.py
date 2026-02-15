@@ -11,7 +11,7 @@ from typing import Callable
 
 from tqdm import tqdm
 
-from config import VIDEO_EXTENSIONS, FFPROBE_BIN
+from config import VIDEO_EXTENSIONS, IMAGE_EXTENSIONS, FFPROBE_BIN
 
 # ============================================================
 # 日志配置
@@ -103,6 +103,36 @@ def scan_videos(directory: str | Path) -> list[Path]:
     )
     logger.info(f"扫描到 {len(videos)} 个视频文件: {directory}")
     return videos
+
+
+def scan_images(directory: str | Path) -> list[Path]:
+    """
+    扫描目录下所有支持的图片文件 (非递归)
+
+    Returns:
+        list[Path]: 排序后的图片文件列表
+    """
+    directory = Path(directory)
+    if not directory.is_dir():
+        logger.error(f"目录不存在: {directory}")
+        return []
+
+    images = sorted(
+        f for f in directory.iterdir()
+        if f.is_file() and f.suffix.lower() in IMAGE_EXTENSIONS
+    )
+    logger.info(f"扫描到 {len(images)} 个图片文件: {directory}")
+    return images
+
+
+def scan_media(directory: str | Path) -> tuple[list[Path], list[Path]]:
+    """
+    扫描目录下所有支持的媒体文件 (视频 + 图片)
+
+    Returns:
+        tuple: (videos, images)
+    """
+    return scan_videos(directory), scan_images(directory)
 
 
 # ============================================================

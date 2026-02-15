@@ -13,6 +13,7 @@ OUTPUT_DIR = PROJECT_ROOT / "output"
 # 各功能输出子目录
 OUTPUT_EXTRACT = OUTPUT_DIR / "extract"
 OUTPUT_WATERMARK = OUTPUT_DIR / "watermark"
+OUTPUT_ADD_WATERMARK = OUTPUT_DIR / "add_watermark"
 OUTPUT_UPSCALE = OUTPUT_DIR / "upscale"
 OUTPUT_INTERPOLATION = OUTPUT_DIR / "interpolation"
 
@@ -20,6 +21,7 @@ OUTPUT_INTERPOLATION = OUTPUT_DIR / "interpolation"
 # 支持的视频格式
 # ============================================================
 VIDEO_EXTENSIONS = {".mp4", ".avi", ".mov", ".mkv", ".flv", ".wmv", ".webm", ".m4v"}
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tiff"}
 
 # ============================================================
 # FFmpeg 配置
@@ -39,6 +41,14 @@ KEYFRAME_IMAGE_QUALITY = 95             # 关键帧图片质量 (1-100)
 # 去水印
 WATERMARK_INPAINT_RADIUS = 5            # OpenCV inpaint 修复半径
 
+# 加水印
+ADD_WATERMARK_FONT_SIZE = 36            # 默认字号
+ADD_WATERMARK_OPACITY = 0.7             # 默认透明度 (0.0~1.0)
+ADD_WATERMARK_COLOR = (255, 255, 255)   # 默认颜色 (白色, RGB)
+ADD_WATERMARK_POSITION = "bottom-right" # 默认位置
+ADD_WATERMARK_MARGIN = 20               # 距离边缘的像素间距
+ADD_WATERMARK_LOGO_SCALE = 0.15         # Logo 水印占画面宽度比例
+
 # 高清重置
 UPSCALE_FACTOR = 2                      # 默认放大倍数 (2x / 4x)
 
@@ -49,5 +59,5 @@ INTERPOLATION_TARGET_FPS = 60           # 目标帧率
 def ensure_dirs():
     """确保所有必要目录存在"""
     for d in [INPUT_DIR, OUTPUT_EXTRACT, OUTPUT_WATERMARK,
-              OUTPUT_UPSCALE, OUTPUT_INTERPOLATION]:
+              OUTPUT_ADD_WATERMARK, OUTPUT_UPSCALE, OUTPUT_INTERPOLATION]:
         d.mkdir(parents=True, exist_ok=True)

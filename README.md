@@ -28,6 +28,7 @@ python main.py
 支持：
 - 📂 **输入源灵活**: 自动扫描 `input/` 目录，或选择单个文件/任意文件夹。
 - 💧 **去水印**: 支持鼠标框选区域 (OpenCV 快速修复 / LaMA 深度学习无痕修复)。
+- 🏷️ **加水印**: 文字水印 (支持中文) / 图片水印 (Logo), 支持图片和视频。
 - 🆙 **高清重置**: 批量 2x/4x 放大 (使用 Real-ESRGAN AI 或 FFmpeg)。
 - ✂️ **内容提取**: 批量截取片段、提取关键帧。
 
@@ -51,7 +52,23 @@ python tools/watermark/lama_remover.py video.mp4 -r 10,10,200,60
 python tools/watermark/batch.py -r 625,1220,695,1260 lama
 ```
 
-### 2. 🆙 视频高清重置 (超分辨率)
+### 2. 🏷️ 增加水印
+支持文字水印 (中文) 和图片水印 (Logo)，同时支持图片和视频。
+
+```bash
+# 文字水印 (图片或视频均可)
+python tools/add_watermark/text_watermark.py image.jpg -t "© 2026 版权所有"
+python tools/add_watermark/text_watermark.py video.mp4 -t "Sample" --position top-left --opacity 0.5
+
+# Logo 水印
+python tools/add_watermark/image_watermark.py video.mp4 -w logo.png --scale 0.2
+
+# 批量处理
+python tools/add_watermark/batch.py text -t "水印文字"
+python tools/add_watermark/batch.py image -w logo.png
+```
+
+### 3. 🆙 视频高清重置 (超分辨率)
 ```bash
 # Real-ESRGAN AI 超分 (2倍放大)
 python tools/upscale/realesrgan.py video.mp4 -s 2
@@ -60,7 +77,7 @@ python tools/upscale/realesrgan.py video.mp4 -s 2
 python tools/upscale/ffmpeg_scale.py video.mp4 -s 2
 ```
 
-### 3. ✂️ 内容截取与提取
+### 4. ✂️ 内容截取与提取
 ```bash
 # 截取前 30 秒
 python tools/extract/clip_extractor.py video.mp4 -s 0 -d 30
@@ -69,7 +86,7 @@ python tools/extract/clip_extractor.py video.mp4 -s 0 -d 30
 python tools/extract/keyframe_extractor.py video.mp4 --keyframes
 ```
 
-### 4. ⏯️ 帧数补充 (插帧)
+### 5. ⏯️ 帧数补充 (插帧)
 ```bash
 # RIFE AI 插帧 (2倍帧率)
 python tools/interpolation/rife.py video.mp4 -m 2
@@ -77,7 +94,7 @@ python tools/interpolation/rife.py video.mp4 -m 2
 
 ---
 
-## �️ 目录结构
+## 🗂️ 目录结构
 ```
 x-tools/
 ├── main.py                       # 🚀 交互式入口
@@ -86,13 +103,14 @@ x-tools/
 ├── output/                       # 📂 默认输出目录
 └── tools/
     ├── watermark/                # 去水印模块 (OpenCV, LaMA)
+    ├── add_watermark/            # 加水印模块 (文字, Logo)
     ├── upscale/                  # 超分模块 (Real-ESRGAN, FFmpeg)
     ├── extract/                  # 提取模块 (截取, 关键帧)
     └── interpolation/            # 插帧模块 (RIFE, FFmpeg)
 ```
 
 ## 📦 依赖说明
-- **基础依赖**: `opencv-python`, `ffmpeg-python`, `rich`, `InquirerPy`
+- **基础依赖**: `opencv-python`, `ffmpeg-python`, `rich`, `InquirerPy`, `Pillow`
 - **AI 增强 (按需安装)**:
   - 去水印 (LaMA): `torch`, `torchvision` (首次运行自动下载模型)
   - 超分 (Real-ESRGAN): `basicsr`, `realesrgan`

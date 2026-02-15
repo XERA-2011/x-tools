@@ -19,13 +19,14 @@ from InquirerPy.separator import Separator
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from config import INPUT_DIR, UPSCALE_FACTOR, INTERPOLATION_TARGET_FPS
-from tools.common import scan_videos, logger
+from tools.common import scan_videos, scan_media, logger
 
 # 引入各个批量处理函数
 from tools.extract.batch import batch_extract_clips, batch_extract_keyframes
 from tools.watermark.batch import batch_remove_watermark_opencv, batch_remove_watermark_lama
 from tools.upscale.batch import batch_upscale_ffmpeg, batch_upscale_realesrgan
 from tools.interpolation.batch import batch_interpolate_ffmpeg, batch_interpolate_rife
+from tools.add_watermark.batch import batch_add_text_watermark, batch_add_image_watermark
 
 
 def get_input_videos() -> list[Path]:
@@ -62,6 +63,45 @@ def get_input_videos() -> list[Path]:
         videos = scan_videos(path_str)
         print(f"扫描到 {len(videos)} 个视频")
         return videos
+    
+    return []
+
+
+def get_input_media() -> list[Path]:
+    """获取待处理媒体文件列表 (视频 + 图片)"""
+    mode = inquirer.select(
+        message="选择输入源:",
+        choices=[
+            Choice("scan", f"📂 扫描 input/ 目录"),
+            Choice("path", "📄 指定单个文件路径"),
+            Choice("manual_dir", "📁 指定其他目录"),
+        ],
+    ).execute()
+
+    if mode == "scan":
+        videos, images = scan_media(INPUT_DIR)
+        files = images + videos
+        print(f"扫描到 {len(images)} 个图片, {len(videos)} 个视频")
+        return files
+    
+    elif mode == "path":
+        path_str = inquirer.filepath(
+            message="输入文件路径:",
+            validate=lambda x: Path(x).is_file(),
+        ).execute()
+        return [Path(path_str)]
+    
+    elif mode == "manual_dir":
+        path_str = inquirer.filepath(
+            message="输入目录路径:",
+            default=str(INPUT_DIR),
+            validate=lambda x: Path(x).is_dir(),
+            only_directories=True,
+        ).execute()
+        videos, images = scan_media(path_str)
+        files = images + videos
+        print(f"扫描到 {len(images)} 个图片, {len(videos)} 个视频")
+        return files
     
     return []
 
@@ -243,6 +283,71 @@ def menu_interpolate(videos: list[Path]):
             batch_interpolate_rife(videos=videos, multiplier=multiplier)
 
 
+def menu_add_watermark(media: list[Path]):
+    """加水印菜单"""
+    wm_type = inquirer.select(
+        message="选择水印类型:",
+        choices=[
+            Choice("text", "📝 文字水印 (支持中文)"),
+            Choice("image", "🖼️  图片水印 (Logo)"),
+        ],
+    ).execute()
+
+    if wm_type == "text":
+        text = inquirer.text(message="水印文字:").execute()
+        if not text.strip():
+            print("❌ 水印文字不能为空")
+            return
+
+        position = inquirer.select(
+            message="水印位置:",
+            choices=[
+                Choice("bottom-right", "↘️  右下角"),
+                Choice("bottom-left", "↙️  左下角"),
+                Choice("top-right", "↗️  右上角"),
+                Choice("top-left", "↖️  左上角"),
+                Choice("center", "⊕  居中"),
+            ],
+            default="bottom-right",
+        ).execute()
+
+        font_size = int(inquirer.number(message="字号:", default=36).execute())
+        opacity = float(inquirer.text(message="透明度 (0.0~1.0):", default="0.7").execute())
+
+        if inquirer.confirm(message=f"确认为 {len(media)} 个文件添加文字水印?", default=True).execute():
+            batch_add_text_watermark(
+                files=media, text=text,
+                position=position, font_size=font_size, opacity=opacity,
+            )
+
+    elif wm_type == "image":
+        logo_path = inquirer.filepath(
+            message="Logo 图片路径 (推荐 PNG):",
+            validate=lambda x: Path(x).is_file(),
+        ).execute()
+
+        position = inquirer.select(
+            message="水印位置:",
+            choices=[
+                Choice("bottom-right", "↘️  右下角"),
+                Choice("bottom-left", "↙️  左下角"),
+                Choice("top-right", "↗️  右上角"),
+                Choice("top-left", "↖️  左上角"),
+                Choice("center", "⊕  居中"),
+            ],
+            default="bottom-right",
+        ).execute()
+
+        scale = float(inquirer.text(message="Logo 大小比例 (0.0~1.0):", default="0.15").execute())
+        opacity = float(inquirer.text(message="透明度 (0.0~1.0):", default="0.7").execute())
+
+        if inquirer.confirm(message=f"确认为 {len(media)} 个文件添加 Logo 水印?", default=True).execute():
+            batch_add_image_watermark(
+                files=media, watermark_path=logo_path,
+                position=position, scale=scale, opacity=opacity,
+            )
+
+
 def main():
     print(r"""
  __   __        ______            _     
@@ -260,6 +365,7 @@ def main():
             choices=[
                 Choice("extract", "✂️  内容截取 (Extract)"),
                 Choice("watermark", "💧 去水印 (Watermark)"),
+                Choice("add_watermark", "🏷️  增加水印 (Add Watermark)"),
                 Choice("upscale", "🆙 高清重置 (Upscale)"),
                 Choice("interpolate", "⏯️  帧数补充 (Interpolate)"),
                 Separator(),
@@ -273,20 +379,27 @@ def main():
             sys.exit(0)
 
         # 获取输入
-        videos = get_input_videos()
-        if not videos:
-            print("❌ 未找到视频文件")
-            continue
+        if module == "add_watermark":
+            media = get_input_media()
+            if not media:
+                print("❌ 未找到媒体文件")
+                continue
+            menu_add_watermark(media)
+        else:
+            videos = get_input_videos()
+            if not videos:
+                print("❌ 未找到视频文件")
+                continue
 
-        # 进入子菜单
-        if module == "extract":
-            menu_extract(videos)
-        elif module == "watermark":
-            menu_watermark(videos)
-        elif module == "upscale":
-            menu_upscale(videos)
-        elif module == "interpolate":
-            menu_interpolate(videos)
+            # 进入子菜单
+            if module == "extract":
+                menu_extract(videos)
+            elif module == "watermark":
+                menu_watermark(videos)
+            elif module == "upscale":
+                menu_upscale(videos)
+            elif module == "interpolate":
+                menu_interpolate(videos)
             
         print("\n✅ 任务完成!\n")
         if not inquirer.confirm(message="继续其他操作?", default=True).execute():
