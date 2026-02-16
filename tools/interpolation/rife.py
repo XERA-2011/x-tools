@@ -26,7 +26,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from config import FFMPEG_BIN, OUTPUT_INTERPOLATION, INTERPOLATION_TARGET_FPS
-from tools.common import get_video_info, logger
+from tools.common import get_video_info, logger, merge_audio
 
 
 def _check_rife_ncnn():
@@ -165,7 +165,7 @@ def interpolate_video_rife(
     frames_out = len(frames)
 
     # 合并音频 (变速处理: 音频保持原始时长)
-    _merge_audio(video_path, temp_video_path, output_path)
+    merge_audio(video_path, temp_video_path, output_path)
     Path(temp_video_path).unlink(missing_ok=True)
 
     logger.info(
@@ -181,29 +181,6 @@ def interpolate_video_rife(
     }
 
 
-def _merge_audio(original_video: Path, processed_video: str, output_path: Path):
-    """将原视频音频合并到处理后的视频"""
-    cmd = [
-        FFMPEG_BIN, "-y",
-        "-i", str(processed_video),
-        "-i", str(original_video),
-        "-c:v", "libx264", "-crf", "18", "-preset", "fast",
-        "-c:a", "aac", "-b:a", "192k",
-        "-map", "0:v:0",
-        "-map", "1:a:0?",
-        "-shortest",
-        str(output_path),
-    ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        cmd_fallback = [
-            FFMPEG_BIN, "-y",
-            "-i", str(processed_video),
-            "-c:v", "libx264", "-crf", "18", "-preset", "fast",
-            "-an",
-            str(output_path),
-        ]
-        subprocess.run(cmd_fallback, capture_output=True, text=True, check=True)
 
 
 # ============================================================

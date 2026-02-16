@@ -24,7 +24,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from config import FFMPEG_BIN, OUTPUT_UPSCALE, UPSCALE_FACTOR
-from tools.common import get_video_info, logger
+from tools.common import get_video_info, logger, merge_audio
 
 
 def _check_realesrgan():
@@ -183,7 +183,7 @@ def upscale_video_realesrgan(
     writer.release()
 
     # 合并音频
-    _merge_audio(video_path, temp_video_path, output_path)
+    merge_audio(video_path, temp_video_path, output_path)
     Path(temp_video_path).unlink(missing_ok=True)
 
     original_size = f"{width}x{height}"
@@ -198,29 +198,6 @@ def upscale_video_realesrgan(
     }
 
 
-def _merge_audio(original_video: Path, processed_video: str, output_path: Path):
-    """将原视频音频合并到处理后的视频"""
-    cmd = [
-        FFMPEG_BIN, "-y",
-        "-i", str(processed_video),
-        "-i", str(original_video),
-        "-c:v", "libx264", "-crf", "18", "-preset", "fast",
-        "-c:a", "aac", "-b:a", "192k",
-        "-map", "0:v:0",
-        "-map", "1:a:0?",
-        "-shortest",
-        str(output_path),
-    ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        cmd_fallback = [
-            FFMPEG_BIN, "-y",
-            "-i", str(processed_video),
-            "-c:v", "libx264", "-crf", "18", "-preset", "fast",
-            "-an",
-            str(output_path),
-        ]
-        subprocess.run(cmd_fallback, capture_output=True, text=True, check=True)
 
 
 # ============================================================

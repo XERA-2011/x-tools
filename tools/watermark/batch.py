@@ -47,7 +47,6 @@ def batch_remove_watermark_opencv(
         feather: 边缘羽化
     """
     ensure_dirs()
-    ensure_dirs()
     if videos is None:
         videos = scan_videos(input_dir or INPUT_DIR)
     results = batch_process(
@@ -138,11 +137,11 @@ if __name__ == "__main__":
 
     if args.engine == "opencv":
         batch_remove_watermark_opencv(
-            args.input_dir, args.region, args.mask,
-            args.method, args.radius, args.feather,
+            input_dir=args.input_dir, regions=args.region, mask_path=args.mask,
+            method=args.method, inpaint_radius=args.radius, feather=args.feather,
         )
     elif args.engine == "lama":
         batch_remove_watermark_lama(
-            args.input_dir, args.region, args.mask,
-            args.model, args.device, args.feather,
+            input_dir=args.input_dir, regions=args.region, mask_path=args.mask,
+            device=args.device, feather=args.feather,
         )

@@ -61,3 +61,19 @@ def ensure_dirs():
     for d in [INPUT_DIR, OUTPUT_EXTRACT, OUTPUT_WATERMARK,
               OUTPUT_ADD_WATERMARK, OUTPUT_UPSCALE, OUTPUT_INTERPOLATION]:
         d.mkdir(parents=True, exist_ok=True)
+
+
+# ============================================================
+# 参数验证
+# ============================================================
+def clamp(value: float, min_val: float, max_val: float, name: str = "") -> float:
+    """将值限制在合法范围内, 超出范围时打印警告"""
+    if value < min_val or value > max_val:
+        clamped = max(min_val, min(max_val, value))
+        if name:
+            import logging
+            logging.getLogger("x-tools").warning(
+                f"{name}={value} 超出范围 [{min_val}, {max_val}], 已修正为 {clamped}"
+            )
+        return clamped
+    return value

@@ -60,7 +60,6 @@ def batch_extract_clips(
         reencode: 是否重新编码
     """
     ensure_dirs()
-    ensure_dirs()
     if videos is None:
         videos = scan_videos(input_dir or INPUT_DIR)
     results = batch_process(
@@ -163,10 +162,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.mode == "clip":
-        batch_extract_clips(args.input_dir, args.start, args.end, args.duration, args.reencode)
+        batch_extract_clips(input_dir=args.input_dir, start=args.start, end=args.end, duration=args.duration, reencode=args.reencode)
     elif args.mode == "keyframes":
-        batch_extract_keyframes(args.input_dir)
+        batch_extract_keyframes(input_dir=args.input_dir)
     elif args.mode == "interval":
-        batch_extract_interval(args.input_dir, args.seconds)
+        batch_extract_interval(input_dir=args.input_dir, interval=args.seconds)
     elif args.mode == "scene":
-        batch_extract_scenes(args.input_dir, args.threshold)
+        batch_extract_scenes(input_dir=args.input_dir, threshold=args.threshold)

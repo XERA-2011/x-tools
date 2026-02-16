@@ -32,8 +32,9 @@ from config import (
     FFMPEG_BIN, OUTPUT_ADD_WATERMARK, IMAGE_EXTENSIONS, VIDEO_EXTENSIONS,
     ADD_WATERMARK_FONT_SIZE, ADD_WATERMARK_OPACITY,
     ADD_WATERMARK_COLOR, ADD_WATERMARK_POSITION, ADD_WATERMARK_MARGIN,
+    clamp,
 )
-from tools.common import logger
+from tools.common import logger, merge_audio
 
 
 # ============================================================
@@ -214,8 +215,13 @@ def add_text_watermark_image(
     if not image_path.is_file():
         raise FileNotFoundError(f"图片文件不存在: {image_path}")
 
-    font = _get_font(font_path, font_size)
     pil_image = Image.open(image_path)
+
+    # 参数验证
+    opacity = clamp(opacity, 0.0, 1.0, "opacity")
+    font_size = max(1, int(font_size))
+
+    font = _get_font(font_path, font_size)
 
     result_image = _render_text_on_pil_image(
         pil_image, text, font, color, opacity, position, margin,
@@ -266,6 +272,10 @@ def add_text_watermark_video(
         raise FileNotFoundError(f"视频文件不存在: {video_path}")
 
     font = _get_font(font_path, font_size)
+
+    # 参数验证
+    opacity = clamp(opacity, 0.0, 1.0, "opacity")
+    font_size = max(1, int(font_size))
 
     # 打开视频
     cap = cv2.VideoCapture(str(video_path))
@@ -318,7 +328,7 @@ def add_text_watermark_video(
     writer.release()
 
     # 合并音频
-    _merge_audio(video_path, temp_video_path, output_path)
+    merge_audio(video_path, temp_video_path, output_path)
     Path(temp_video_path).unlink(missing_ok=True)
 
     logger.info(f"✅ 视频文字水印完成: {output_path.name} ({frames_done} 帧)")
@@ -355,33 +365,6 @@ def add_text_watermark(
         raise ValueError(f"不支持的文件格式: {suffix}")
 
 
-# ============================================================
-# 音频合并 (复用去水印模块的模式)
-# ============================================================
-def _merge_audio(original_video: Path, processed_video: str, output_path: Path):
-    """将原视频音频合并到处理后的视频"""
-    cmd = [
-        FFMPEG_BIN, "-y",
-        "-i", str(processed_video),
-        "-i", str(original_video),
-        "-c:v", "libx264", "-crf", "18", "-preset", "fast",
-        "-c:a", "aac", "-b:a", "192k",
-        "-map", "0:v:0",
-        "-map", "1:a:0?",
-        "-shortest",
-        str(output_path),
-    ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        logger.warning("音频混合失败, 仅输出视频")
-        cmd_fallback = [
-            FFMPEG_BIN, "-y",
-            "-i", str(processed_video),
-            "-c:v", "libx264", "-crf", "18", "-preset", "fast",
-            "-an",
-            str(output_path),
-        ]
-        subprocess.run(cmd_fallback, capture_output=True, text=True, check=True)
 
 
 # ============================================================

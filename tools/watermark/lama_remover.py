@@ -27,8 +27,8 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from config import FFMPEG_BIN, OUTPUT_WATERMARK
-from tools.common import logger
-from tools.watermark.opencv_inpaint import create_mask_from_regions, _merge_audio
+from tools.common import logger, merge_audio
+from tools.watermark.opencv_inpaint import create_mask_from_regions
 
 
 def _check_torch():
@@ -216,7 +216,7 @@ def remove_watermark_lama(
     writer.release()
 
     # 5. 合并音频
-    _merge_audio(video_path, temp_video_path, output_path)
+    merge_audio(video_path, temp_video_path, output_path)
     Path(temp_video_path).unlink(missing_ok=True)
 
     logger.info(f"✅ LaMA 去水印完成: {output_path.name}")

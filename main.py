@@ -7,6 +7,7 @@ x-tools 交互式终端入口 (TUI)
   - 扫描 input/ 目录或选择单文件
   - 调用 Rich 显示进度
 """
+import shutil
 import sys
 from pathlib import Path
 from typing import Callable
@@ -138,35 +139,20 @@ def menu_extract(videos: list[Path]):
             interval = int(inquirer.number(message="间隔秒数:", default=5).execute())
             
         if inquirer.confirm(message=f"确认提取 {len(videos)} 个视频的关键帧?", default=True).execute():
-            # batch_extract_keyframes 内部接口稍有不同，这里适配一下
-            # 实际上 batch_extract_keyframes 需要解析 args，为了简化，我们直接调用 worker 循环
-            # 或者复用 batch.py 里的逻辑。为简单起见，这里重新组装参数
-            pass 
-            # 实际上 tools/extract/batch.py 设计是 CLI 用的，直接复用函数需注意参数
-            # 让我们直接用 batch_process 调度，或者修改 batch.py 暴露更友好的 Python 接口
-            # 这里简单起见，直接调用 batch_extract_keyframes (它内部处理了逻辑)
-            
-            # 由于 batch_extract_keyframes 参数设计较复杂(依赖 args), 
-            # 我们改用更通用的 batch_extract_keyframes_worker 逻辑
-            # 但这里为了不改动太多，暂时用 subprocess 调用 batch.py 也是一种办法?
-            # 不，最好是直接调用 Python 函数。
-            
-            # 修正: 上面 import 的 batch_extract_keyframes 是 CLI entrypoint 吗?
-            # 检查 extract/batch.py... 是的，它是 def batch_extract(args)。
-            # 我们需要重构一下 extract/batch.py 或者是直接在那里添加 Python 友好接口。
-            # 为了不中断流程，我直接在这里用 batch_process + worker。
-            
             from tools.common import batch_process, print_summary
-            from tools.extract.keyframe_extractor import extract_keyframes
+            from tools.extract.keyframe_extractor import (
+                extract_keyframes as _extract_kf,
+                extract_frames_interval as _extract_interval,
+                extract_frames_scene_change as _extract_scene,
+            )
             
-            def worker(video, **kwargs):
-                # 适配参数
-                use_keyframes = mode == "keyframes"
-                use_interval = float(interval) if mode == "interval" else None
-                use_scene = 0.3 if mode == "scene" else None
-                return extract_keyframes(video, keyframes=use_keyframes, interval=use_interval, scene_threshold=use_scene)
-
-            results = batch_process(videos, worker, desc="提取关键帧")
+            if mode == "keyframes":
+                results = batch_process(videos, _extract_kf, desc="提取关键帧")
+            elif mode == "interval":
+                results = batch_process(videos, _extract_interval, desc="按间隔提取帧", interval=float(interval))
+            elif mode == "scene":
+                results = batch_process(videos, _extract_scene, desc="按场景提取帧", threshold=0.3)
+            
             print_summary(results)
 
 
@@ -180,49 +166,48 @@ def menu_watermark(videos: list[Path]):
         ],
     ).execute()
 
-    print("请输入水印区域坐标: x1,y1,x2,y2")
-    print("提示: 输入 's' 或 'select' 可开启鼠标框选 (需本地运行)")
-    region_input = inquirer.text(message="区域坐标 (或 s):").execute()
+    # 使用循环代替递归, 避免栈溢出
+    while True:
+        print("请输入水印区域坐标: x1,y1,x2,y2")
+        print("提示: 输入 's' 或 'select' 可开启鼠标框选 (需本地运行)")
+        region_input = inquirer.text(message="区域坐标 (或 s):").execute()
 
-    if region_input.lower() in ["s", "select"]:
-        try:
-            import cv2
-            # 取第一个视频做样本
-            sample_video = videos[0]
-            cap = cv2.VideoCapture(str(sample_video))
-            # 取 20% 处的帧避免黑屏
-            total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            cap.set(cv2.CAP_PROP_POS_FRAMES, int(total * 0.2))
-            ret, frame = cap.read()
-            cap.release()
-            
-            if not ret:
-                print("❌ 无法读取视频帧，请手动输入")
-                return menu_watermark(videos)
+        if region_input.lower() in ["s", "select"]:
+            try:
+                import cv2
+                sample_video = videos[0]
+                cap = cv2.VideoCapture(str(sample_video))
+                total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                cap.set(cv2.CAP_PROP_POS_FRAMES, int(total * 0.2))
+                ret, frame = cap.read()
+                cap.release()
                 
-            print("\n📸 请在弹出的窗口中框选水印区域，按 Enter 或 Space 确认...")
-            #如果是 mac, 这种 cv2 窗口可能需要 pythonw 或特定环境，但通常 cv2-headless 不带 GUI
-            #这里假设用户环境支持 GUI (如 brew install opencv 或完整 pip opencv-python)
-            x, y, w, h = cv2.selectROI("Select Watermark", frame, showCrosshair=True)
-            cv2.destroyAllWindows()
-            # 加上一点 padding
-            x1, y1, x2, y2 = int(x), int(y), int(x+w), int(y+h)
-            print(f"✅ 已选择: {x1},{y1},{x2},{y2}")
-            
-            # 由于 cv2 窗口可能前台显示问题，这里确认一下
-            if w == 0 or h == 0:
-                print("⚠️ 未选择区域")
-                return menu_watermark(videos)
+                if not ret:
+                    print("❌ 无法读取视频帧，请手动输入")
+                    continue
+                    
+                print("\n📸 请在弹出的窗口中框选水印区域，按 Enter 或 Space 确认...")
+                x, y, w, h = cv2.selectROI("Select Watermark", frame, showCrosshair=True)
+                cv2.destroyAllWindows()
+                x1, y1, x2, y2 = int(x), int(y), int(x+w), int(y+h)
+                print(f"✅ 已选择: {x1},{y1},{x2},{y2}")
                 
-        except Exception as e:
-            print(f"❌ 启动图形界面失败: {e}\n请尝试手动输入坐标。")
-            return menu_watermark(videos)
-    else:
-        try:
-            x1, y1, x2, y2 = [int(p.strip()) for p in region_input.split(',')]
-        except:
-            print("❌ 格式错误，请使用 x1,y1,x2,y2")
-            return menu_watermark(videos)
+                if w == 0 or h == 0:
+                    print("⚠️ 未选择区域")
+                    continue
+                    
+            except Exception as e:
+                print(f"❌ 启动图形界面失败: {e}\n请尝试手动输入坐标。")
+                continue
+        else:
+            try:
+                x1, y1, x2, y2 = [int(p.strip()) for p in region_input.split(',')]
+            except (ValueError, TypeError):
+                print("❌ 格式错误，请使用 x1,y1,x2,y2")
+                continue
+
+        # 成功解析坐标, 跳出循环
+        break
     
     if inquirer.confirm(message=f"确认处理 {len(videos)} 个视频?", default=True).execute():
         if engine == "opencv":
@@ -348,7 +333,19 @@ def menu_add_watermark(media: list[Path]):
             )
 
 
+def _check_ffmpeg():
+    """检测 FFmpeg 是否可用"""
+    if not shutil.which("ffmpeg"):
+        print("❌ 未检测到 FFmpeg, 请先安装:")
+        print("   macOS:   brew install ffmpeg")
+        print("   Ubuntu:  sudo apt install ffmpeg")
+        print("   Windows: https://ffmpeg.org/download.html")
+        sys.exit(1)
+
+
 def main():
+    _check_ffmpeg()
+
     print(r"""
  __   __        ______            _     
  \ \ / /       |  ____|          | |    

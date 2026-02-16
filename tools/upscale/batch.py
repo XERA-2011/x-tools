@@ -43,7 +43,6 @@ def batch_upscale_ffmpeg(
         crf: 输出质量
     """
     ensure_dirs()
-    ensure_dirs()
     if videos is None:
         videos = scan_videos(input_dir or INPUT_DIR)
     results = batch_process(
@@ -112,6 +111,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.engine == "ffmpeg":
-        batch_upscale_ffmpeg(args.input_dir, args.scale, args.algorithm, args.crf)
+        batch_upscale_ffmpeg(input_dir=args.input_dir, scale=args.scale, algorithm=args.algorithm, crf=args.crf)
     elif args.engine == "realesrgan":
-        batch_upscale_realesrgan(args.input_dir, args.scale, args.device)
+        batch_upscale_realesrgan(input_dir=args.input_dir, scale=args.scale, device=args.device)

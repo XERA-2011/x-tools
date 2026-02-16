@@ -21,7 +21,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from config import FFMPEG_BIN, OUTPUT_WATERMARK, WATERMARK_INPAINT_RADIUS
-from tools.common import get_video_info, logger
+from tools.common import get_video_info, logger, merge_audio
 
 
 def create_mask_from_regions(
@@ -153,7 +153,7 @@ def remove_watermark_opencv(
     writer.release()
 
     # 混合原视频音频 + 修复后的视频画面
-    _merge_audio(video_path, temp_video_path, output_path)
+    merge_audio(video_path, temp_video_path, output_path)
 
     # 清理临时文件
     Path(temp_video_path).unlink(missing_ok=True)
@@ -162,35 +162,6 @@ def remove_watermark_opencv(
     return {"output": str(output_path), "frames_processed": frames_done}
 
 
-def _merge_audio(
-    original_video: Path,
-    processed_video: str,
-    output_path: Path,
-):
-    """将原视频的音频合并到处理后的视频中"""
-    cmd = [
-        FFMPEG_BIN, "-y",
-        "-i", str(processed_video),    # 修复后的视频 (无音频)
-        "-i", str(original_video),     # 原视频 (取音频)
-        "-c:v", "libx264", "-crf", "18", "-preset", "fast",
-        "-c:a", "aac", "-b:a", "192k",
-        "-map", "0:v:0",              # 用修复后的视频流
-        "-map", "1:a:0?",             # 用原视频的音频流 (可选, 原视频可能无音频)
-        "-shortest",
-        str(output_path),
-    ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        # 如果混合失败 (比如原视频无音频), 直接用 libx264 重编码视频
-        logger.warning("音频混合失败, 仅输出视频")
-        cmd_fallback = [
-            FFMPEG_BIN, "-y",
-            "-i", str(processed_video),
-            "-c:v", "libx264", "-crf", "18", "-preset", "fast",
-            "-an",
-            str(output_path),
-        ]
-        subprocess.run(cmd_fallback, capture_output=True, text=True, check=True)
 
 
 # ============================================================

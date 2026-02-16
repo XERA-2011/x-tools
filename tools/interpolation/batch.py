@@ -41,7 +41,6 @@ def batch_interpolate_ffmpeg(
         mode: 插帧模式
     """
     ensure_dirs()
-    ensure_dirs()
     if videos is None:
         videos = scan_videos(input_dir or INPUT_DIR)
     results = batch_process(
@@ -109,10 +108,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.engine == "ffmpeg":
-        batch_interpolate_ffmpeg(args.input_dir, args.target_fps, args.mode)
+        batch_interpolate_ffmpeg(input_dir=args.input_dir, target_fps=args.target_fps, mode=args.mode)
     elif args.engine == "rife":
         batch_interpolate_rife(
-            args.input_dir,
-            getattr(args, "multiplier", None),
-            getattr(args, "target_fps", None),
+            input_dir=args.input_dir,
+            multiplier=getattr(args, "multiplier", None),
+            target_fps=getattr(args, "target_fps", None),
         )
