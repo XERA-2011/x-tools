@@ -3,8 +3,9 @@
 
 方法说明:
   - 将 PNG/带透明通道的 Logo 叠加到图片或视频上
-  - 支持按比例缩放 Logo 大小
-  - 支持透明度和位置配置
+  - 视频处理优化: 预渲染 Logo 层 + NumPy Alpha Blending
+  - 图片处理: 使用 Pillow 原始合成
+  - 支持按比例缩放 Logo 大小、透明度、位置
 
 使用方式:
   # 图片加 Logo 水印
@@ -16,24 +17,21 @@
 依赖:
   pip install Pillow
 """
-import subprocess
-import tempfile
+import sys
 from pathlib import Path
 
 import cv2
 import numpy as np
 from PIL import Image
 
-import sys
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from config import (
-    FFMPEG_BIN, OUTPUT_ADD_WATERMARK, IMAGE_EXTENSIONS, VIDEO_EXTENSIONS,
+    OUTPUT_ADD_WATERMARK, IMAGE_EXTENSIONS, VIDEO_EXTENSIONS,
     ADD_WATERMARK_OPACITY, ADD_WATERMARK_POSITION,
     ADD_WATERMARK_MARGIN, ADD_WATERMARK_LOGO_SCALE,
     clamp,
 )
-from tools.common import logger, merge_audio
+from tools.common import logger, VideoFrameProcessor, generate_output_name
 
 
 # ============================================================
@@ -51,9 +49,6 @@ def _prepare_logo(
         logo_path: Logo 图片路径 (推荐 PNG 带透明通道)
         base_width: 底图宽度
         scale: Logo 占底图宽度的比例 (0.0~1.0)
-
-    Returns:
-        PIL.Image (RGBA): 缩放后的 Logo
     """
     logo = Image.open(logo_path).convert("RGBA")
 
@@ -99,23 +94,12 @@ def _render_logo_on_pil_image(
     margin: int,
 ) -> Image.Image:
     """
-    在 PIL Image 上叠加 Logo 水印
-
-    Args:
-        pil_image: 底图
-        logo: Logo (RGBA)
-        opacity: 透明度 (0.0~1.0)
-        position: 位置
-        margin: 边距
-
-    Returns:
-        PIL.Image: 加了 Logo 的图片
+    在 PIL Image 上叠加 Logo 水印 (用于单张图片)
     """
     base = pil_image.convert("RGBA")
 
     # 调整 Logo 透明度
     if opacity < 1.0:
-        # 修改 Logo alpha 通道
         r, g, b, a = logo.split()
         a = a.point(lambda x: int(x * opacity))
         logo = Image.merge("RGBA", (r, g, b, a))
@@ -136,6 +120,51 @@ def _render_logo_on_pil_image(
     return result
 
 
+def _create_logo_layer(
+    width: int,
+    height: int,
+    watermark_path: str | Path,
+    scale: float,
+    opacity: float,
+    position: str | tuple[int, int],
+    margin: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    创建全尺寸 Logo 层 (用于视频加速)
+    Returns: (bgr, alpha)
+    """
+    # 1. 准备 Logo (缩放)
+    logo = _prepare_logo(watermark_path, width, scale)
+    
+    # 2. 调整透明度
+    if opacity < 1.0:
+        r, g, b, a = logo.split()
+        a = a.point(lambda x: int(x * opacity))
+        logo = Image.merge("RGBA", (r, g, b, a))
+        
+    # 3. 创建层
+    layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    
+    # 4. 计算位置并粘贴
+    x, y = _calc_logo_position(
+        width, height,
+        logo.width, logo.height,
+        position, margin,
+    )
+    layer.paste(logo, (x, y))
+    
+    # 5. 转 NumPy
+    layer_np = np.array(layer)
+    b, g, r = layer_np[:, :, 2], layer_np[:, :, 1], layer_np[:, :, 0]
+    a = layer_np[:, :, 3]
+    
+    bgr = cv2.merge([b, g, r])
+    alpha = a.astype(float) / 255.0
+    alpha = np.expand_dims(alpha, axis=2)
+    
+    return bgr, alpha
+
+
 # ============================================================
 # 图片加 Logo 水印
 # ============================================================
@@ -150,18 +179,6 @@ def add_image_watermark_image(
 ) -> dict:
     """
     为图片添加 Logo 水印
-
-    Args:
-        image_path: 输入图片路径
-        watermark_path: Logo 图片路径 (推荐 PNG)
-        output_path: 输出路径
-        scale: Logo 大小比例 (0.0~1.0)
-        opacity: 透明度
-        position: 位置
-        margin: 边距
-
-    Returns:
-        dict: {"output": str}
     """
     image_path = Path(image_path)
     watermark_path = Path(watermark_path)
@@ -184,7 +201,7 @@ def add_image_watermark_image(
     # 输出
     OUTPUT_ADD_WATERMARK.mkdir(parents=True, exist_ok=True)
     if output_path is None:
-        output_path = OUTPUT_ADD_WATERMARK / f"{image_path.stem}_wm{image_path.suffix}"
+        output_path = OUTPUT_ADD_WATERMARK / generate_output_name(image_path.stem, image_path.suffix, "_wm")
     output_path = Path(output_path)
 
     if output_path.suffix.lower() in (".jpg", ".jpeg", ".bmp"):
@@ -209,14 +226,6 @@ def add_image_watermark_video(
 ) -> dict:
     """
     为视频添加 Logo 水印
-
-    Args:
-        video_path: 输入视频路径
-        watermark_path: Logo 图片路径
-        其他参数同 add_image_watermark_image
-
-    Returns:
-        dict: {"output": str, "frames_processed": int}
     """
     video_path = Path(video_path)
     watermark_path = Path(watermark_path)
@@ -226,66 +235,31 @@ def add_image_watermark_video(
     if not watermark_path.is_file():
         raise FileNotFoundError(f"水印图片不存在: {watermark_path}")
 
-    # 打开视频
-    cap = cv2.VideoCapture(str(video_path))
-    if not cap.isOpened():
-        raise RuntimeError(f"无法打开视频: {video_path}")
-
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
-    # 预处理 Logo (只需做一次)
-    # 参数验证
     opacity = clamp(opacity, 0.0, 1.0, "opacity")
     scale = clamp(scale, 0.01, 1.0, "scale")
 
-    logo = _prepare_logo(watermark_path, width, scale)
-
-    # 输出路径
     OUTPUT_ADD_WATERMARK.mkdir(parents=True, exist_ok=True)
     if output_path is None:
-        output_path = OUTPUT_ADD_WATERMARK / f"{video_path.stem}_wm.mp4"
+        output_path = OUTPUT_ADD_WATERMARK / generate_output_name(video_path.stem, ".mp4", "_wm")
     output_path = Path(output_path)
 
-    # 临时文件
-    temp_video = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
-    temp_video_path = temp_video.name
-    temp_video.close()
+    logger.info(f"视频 Logo 水印: {video_path.name}")
+    frames_processed = 0
 
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    writer = cv2.VideoWriter(temp_video_path, fourcc, fps, (width, height))
+    with VideoFrameProcessor(video_path, output_path) as vp:
+        # 预渲染
+        overlay_bgr, overlay_alpha = _create_logo_layer(
+            vp.width, vp.height, watermark_path, scale, opacity, position, margin
+        )
+        
+        for frame in vp.frames(desc="添加 Logo 水印"):
+            frame_float = frame.astype(float)
+            out = frame_float * (1.0 - overlay_alpha) + overlay_bgr.astype(float) * overlay_alpha
+            vp.write(out.astype(np.uint8))
+            frames_processed += 1
 
-    logger.info(f"视频 Logo 水印: {video_path.name} ({total_frames} 帧)")
-
-    from tqdm import tqdm
-    frames_done = 0
-
-    for _ in tqdm(range(total_frames), desc="添加 Logo 水印", unit="帧"):
-        ret, frame = cap.read()
-        if not ret:
-            break
-
-        # BGR -> RGB -> PIL
-        pil_image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-
-        result_pil = _render_logo_on_pil_image(pil_image, logo, opacity, position, margin)
-
-        # PIL -> BGR
-        result_frame = cv2.cvtColor(np.array(result_pil.convert("RGB")), cv2.COLOR_RGB2BGR)
-        writer.write(result_frame)
-        frames_done += 1
-
-    cap.release()
-    writer.release()
-
-    # 合并音频
-    merge_audio(video_path, temp_video_path, output_path)
-    Path(temp_video_path).unlink(missing_ok=True)
-
-    logger.info(f"✅ 视频 Logo 水印完成: {output_path.name} ({frames_done} 帧)")
-    return {"output": str(output_path), "frames_processed": frames_done}
+    logger.info(f"✅ 视频 Logo 水印完成: {output_path.name} ({frames_processed} 帧)")
+    return {"output": str(output_path), "frames_processed": frames_processed}
 
 
 # ============================================================
@@ -308,8 +282,6 @@ def add_image_watermark(
         return add_image_watermark_video(input_path, watermark_path, **kwargs)
     else:
         raise ValueError(f"不支持的文件格式: {suffix}")
-
-
 
 
 # ============================================================

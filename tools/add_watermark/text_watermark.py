@@ -2,8 +2,9 @@
 文字水印模块
 
 方法说明:
-  - 使用 Pillow 渲染 TrueType 字体, 支持中文文字水印
-  - 支持图片和视频
+  - 使用 Pillow 渲染 TrueType 字体, 支持中文
+  - 视频处理优化: 预渲染水印层 + NumPy Alpha Blending (速度提升显著)
+  - 图片处理: 使用 Pillow 原始合成
   - 可配置: 位置、字号、颜色、透明度
 
 使用方式:
@@ -17,24 +18,21 @@
   pip install Pillow
 """
 import platform
-import subprocess
-import tempfile
+import sys
 from pathlib import Path
 
 import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
-import sys
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from config import (
-    FFMPEG_BIN, OUTPUT_ADD_WATERMARK, IMAGE_EXTENSIONS, VIDEO_EXTENSIONS,
+    OUTPUT_ADD_WATERMARK, IMAGE_EXTENSIONS, VIDEO_EXTENSIONS,
     ADD_WATERMARK_FONT_SIZE, ADD_WATERMARK_OPACITY,
     ADD_WATERMARK_COLOR, ADD_WATERMARK_POSITION, ADD_WATERMARK_MARGIN,
     clamp,
 )
-from tools.common import logger, merge_audio
+from tools.common import logger, VideoFrameProcessor, generate_output_name
 
 
 # ============================================================
@@ -143,18 +141,7 @@ def _render_text_on_pil_image(
 ) -> Image.Image:
     """
     在 PIL Image 上渲染文字水印 (带透明度)
-
-    Args:
-        pil_image: 底图 (RGB/RGBA)
-        text: 水印文字
-        font: 字体对象
-        color: 文字颜色 (R, G, B)
-        opacity: 透明度 (0.0~1.0)
-        position: 位置
-        margin: 边距
-
-    Returns:
-        PIL.Image: 加了水印的图片
+    用于处理单张图片
     """
     # 确保底图是 RGBA
     base = pil_image.convert("RGBA")
@@ -180,6 +167,56 @@ def _render_text_on_pil_image(
     return result
 
 
+def _create_watermark_layer(
+    width: int,
+    height: int,
+    text: str,
+    font: ImageFont.FreeTypeFont,
+    color: tuple[int, int, int],
+    opacity: float,
+    position: str | tuple[int, int],
+    margin: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    创建全尺寸的水印层 (用于视频合成优化)
+    
+    Returns:
+        (bgr_layer, alpha_channel)
+        bgr_layer: (H, W, 3) BGR
+        alpha_channel: (H, W, 1) float 0.0~1.0
+    """
+    # PIL 绘制 RGBA 层
+    layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(layer)
+    
+    bbox = draw.textbbox((0, 0), text, font=font)
+    text_width = bbox[2] - bbox[0]
+    text_height = bbox[3] - bbox[1]
+    
+    x, y = _calc_position(width, height, text_width, text_height, position, margin)
+    
+    alpha_val = int(opacity * 255)
+    draw.text((x, y), text, font=font, fill=(*color, alpha_val))
+    
+    # 转换为 NumPy 数组
+    layer_np = np.array(layer) # RGBA, (H, W, 4)
+    
+    # 分离通道
+    # PIL RGB -> OpenCV BGR
+    # layer_np is R G B A
+    # OpenCV expects B G R
+    # alpha is A
+    
+    b, g, r = layer_np[:, :, 2], layer_np[:, :, 1], layer_np[:, :, 0]
+    a = layer_np[:, :, 3]
+    
+    bgr = cv2.merge([b, g, r])
+    alpha = a.astype(float) / 255.0
+    alpha = np.expand_dims(alpha, axis=2) # (H, W, 1)
+    
+    return bgr, alpha
+
+
 # ============================================================
 # 图片加文字水印
 # ============================================================
@@ -196,20 +233,6 @@ def add_text_watermark_image(
 ) -> dict:
     """
     为图片添加文字水印
-
-    Args:
-        image_path: 输入图片路径
-        text: 水印文字
-        output_path: 输出路径, None 时自动生成
-        font_path: 字体文件路径, None 时自动查找
-        font_size: 字号
-        color: 颜色 (R, G, B)
-        opacity: 透明度 (0.0~1.0)
-        position: 位置
-        margin: 边距
-
-    Returns:
-        dict: {"output": str}
     """
     image_path = Path(image_path)
     if not image_path.is_file():
@@ -230,7 +253,7 @@ def add_text_watermark_image(
     # 输出
     OUTPUT_ADD_WATERMARK.mkdir(parents=True, exist_ok=True)
     if output_path is None:
-        output_path = OUTPUT_ADD_WATERMARK / f"{image_path.stem}_wm{image_path.suffix}"
+        output_path = OUTPUT_ADD_WATERMARK / generate_output_name(image_path.stem, image_path.suffix, "_wm")
     output_path = Path(output_path)
 
     # 保存 (转回 RGB, 因为 JPEG 不支持 RGBA)
@@ -258,81 +281,49 @@ def add_text_watermark_video(
 ) -> dict:
     """
     为视频添加文字水印
-
-    Args:
-        video_path: 输入视频路径
-        text: 水印文字
-        其他参数同 add_text_watermark_image
-
-    Returns:
-        dict: {"output": str, "frames_processed": int}
     """
     video_path = Path(video_path)
     if not video_path.is_file():
         raise FileNotFoundError(f"视频文件不存在: {video_path}")
 
     font = _get_font(font_path, font_size)
-
-    # 参数验证
     opacity = clamp(opacity, 0.0, 1.0, "opacity")
     font_size = max(1, int(font_size))
 
-    # 打开视频
-    cap = cv2.VideoCapture(str(video_path))
-    if not cap.isOpened():
-        raise RuntimeError(f"无法打开视频: {video_path}")
-
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
-    # 输出路径
     OUTPUT_ADD_WATERMARK.mkdir(parents=True, exist_ok=True)
     if output_path is None:
-        output_path = OUTPUT_ADD_WATERMARK / f"{video_path.stem}_wm.mp4"
+        output_path = OUTPUT_ADD_WATERMARK / generate_output_name(video_path.stem, ".mp4", "_wm")
     output_path = Path(output_path)
 
-    # 临时文件 (无音频)
-    temp_video = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
-    temp_video_path = temp_video.name
-    temp_video.close()
+    logger.info(f"视频文字水印: {video_path.name}")
+    frames_processed = 0
 
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    writer = cv2.VideoWriter(temp_video_path, fourcc, fps, (width, height))
-
-    logger.info(f"视频文字水印: {video_path.name} ({total_frames} 帧)")
-
-    from tqdm import tqdm
-    frames_done = 0
-
-    for _ in tqdm(range(total_frames), desc="添加文字水印", unit="帧"):
-        ret, frame = cap.read()
-        if not ret:
-            break
-
-        # BGR -> RGB -> PIL
-        pil_image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-
-        # 渲染水印
-        result_pil = _render_text_on_pil_image(
-            pil_image, text, font, color, opacity, position, margin,
+    with VideoFrameProcessor(video_path, output_path) as vp:
+        # 预渲染水印层 (性能优化)
+        overlay_bgr, overlay_alpha = _create_watermark_layer(
+            vp.width, vp.height, text, font, color, opacity, position, margin
         )
+        
+        # 优化: 只有当 alpha > 0 的地方才需要计算
+        # 如果水印很小, 全图 blend 浪费算力
+        # 但 NumPy 全图操作非常快 (vectorized), 相比 masking 复杂度可能更优
+        # 且 overlay_alpha 大部分是 0. 
+        # out = src * 1 + 0.
+        
+        # 注意: cv2 读出的 frame 是 uint8
+        # 转换 float 计算避免溢出
+        
+        for frame in vp.frames(desc="添加文字水印"):
+            frame_float = frame.astype(float)
+            
+            # Blend: src * (1 - alpha) + overlay * alpha
+            out = frame_float * (1.0 - overlay_alpha) + overlay_bgr.astype(float) * overlay_alpha
+            
+            vp.write(out.astype(np.uint8))
+            frames_processed += 1
 
-        # PIL -> RGB -> BGR -> cv2
-        result_frame = cv2.cvtColor(np.array(result_pil.convert("RGB")), cv2.COLOR_RGB2BGR)
-        writer.write(result_frame)
-        frames_done += 1
-
-    cap.release()
-    writer.release()
-
-    # 合并音频
-    merge_audio(video_path, temp_video_path, output_path)
-    Path(temp_video_path).unlink(missing_ok=True)
-
-    logger.info(f"✅ 视频文字水印完成: {output_path.name} ({frames_done} 帧)")
-    return {"output": str(output_path), "frames_processed": frames_done}
+    logger.info(f"✅ 视频文字水印完成: {output_path.name} ({frames_processed} 帧)")
+    return {"output": str(output_path), "frames_processed": frames_processed}
 
 
 # ============================================================
@@ -345,14 +336,6 @@ def add_text_watermark(
 ) -> dict:
     """
     自动判断输入类型 (图片/视频), 添加文字水印
-
-    Args:
-        input_path: 输入文件路径
-        text: 水印文字
-        **kwargs: 传递给具体处理函数的参数
-
-    Returns:
-        dict: 处理结果
     """
     input_path = Path(input_path)
     suffix = input_path.suffix.lower()
@@ -363,8 +346,6 @@ def add_text_watermark(
         return add_text_watermark_video(input_path, text, **kwargs)
     else:
         raise ValueError(f"不支持的文件格式: {suffix}")
-
-
 
 
 # ============================================================
@@ -387,7 +368,15 @@ if __name__ == "__main__":
     )
     parser.add_argument("--margin", type=int, default=ADD_WATERMARK_MARGIN, help=f"边距像素 (默认: {ADD_WATERMARK_MARGIN})")
 
+    # 颜色参数需要解析 hex 或 r,g,b. Config 默认是 tuple. CLI 暂时默认 white.
+    # 此处简化 CLI 颜色支持
+    parser.add_argument("--color", default="255,255,255", help="颜色 R,G,B (默认: 255,255,255)")
+
     args = parser.parse_args()
+
+    color_tuple = tuple(map(int, args.color.split(",")))
+    if len(color_tuple) != 3:
+        parser.error("Color must be R,G,B")
 
     result = add_text_watermark(
         input_path=args.input,
@@ -398,5 +387,6 @@ if __name__ == "__main__":
         opacity=args.opacity,
         position=args.position,
         margin=args.margin,
+        color=color_tuple,
     )
     print(f"\n✅ 水印添加完成: {result['output']}")

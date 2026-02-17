@@ -7,8 +7,6 @@
 """
 from pathlib import Path
 
-import sys
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from config import INPUT_DIR, UPSCALE_FACTOR, ensure_dirs
 from tools.common import scan_videos, batch_process, print_summary, logger
@@ -32,6 +30,7 @@ def batch_upscale_ffmpeg(
     scale: int = UPSCALE_FACTOR,
     algorithm: str = "lanczos",
     crf: int = 18,
+    **kwargs,
 ) -> list[dict]:
     """
     批量 FFmpeg 放大
@@ -52,6 +51,7 @@ def batch_upscale_ffmpeg(
         scale=scale,
         algorithm=algorithm,
         crf=crf,
+        **kwargs,
     )
     print_summary(results)
     return results
@@ -62,6 +62,7 @@ def batch_upscale_realesrgan(
     videos: list[Path] | None = None,
     scale: int = UPSCALE_FACTOR,
     device: str | None = None,
+    **kwargs,
 ) -> list[dict]:
     """
     批量 Real-ESRGAN 超分
@@ -72,7 +73,6 @@ def batch_upscale_realesrgan(
         device: 推理设备
     """
     ensure_dirs()
-    ensure_dirs()
     if videos is None:
         videos = scan_videos(input_dir or INPUT_DIR)
     results = batch_process(
@@ -81,6 +81,7 @@ def batch_upscale_realesrgan(
         desc=f"批量超分 (Real-ESRGAN {scale}x)",
         scale=scale,
         device=device,
+        **kwargs,
     )
     print_summary(results)
     return results

@@ -14,8 +14,6 @@ FFmpeg 传统视频放大模块
 import subprocess
 from pathlib import Path
 
-import sys
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from config import FFMPEG_BIN, OUTPUT_UPSCALE, UPSCALE_FACTOR
 from tools.common import get_video_info, logger

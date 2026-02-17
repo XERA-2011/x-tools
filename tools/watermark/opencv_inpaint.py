@@ -10,18 +10,15 @@ OpenCV 传统修复去水印模块
   单文件: python tools/watermark/opencv_inpaint.py video.mp4 --region 10,10,200,60
   多区域: python tools/watermark/opencv_inpaint.py video.mp4 --region 10,10,200,60 --region 500,10,700,60
 """
-import subprocess
-import tempfile
 from pathlib import Path
 
 import cv2
 import numpy as np
 
-import sys
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from config import FFMPEG_BIN, OUTPUT_WATERMARK, WATERMARK_INPAINT_RADIUS
-from tools.common import get_video_info, logger, merge_audio
+
+from config import OUTPUT_WATERMARK, WATERMARK_INPAINT_RADIUS
+from tools.common import logger, VideoFrameProcessor, generate_output_name
 
 
 def create_mask_from_regions(
@@ -93,15 +90,16 @@ def remove_watermark_opencv(
     # 确定修复算法
     inpaint_flags = cv2.INPAINT_TELEA if method == "telea" else cv2.INPAINT_NS
 
-    # 打开视频
+    if output_path is None:
+        output_path = OUTPUT_WATERMARK / generate_output_name(video_path.stem, ".mp4", "_no_wm")
+    
+    # 获取视频信息以创建 mask
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
         raise RuntimeError(f"无法打开视频: {video_path}")
-
-    fps = cap.get(cv2.CAP_PROP_FPS)
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    cap.release()
 
     # 创建或加载 mask
     if mask_path:
@@ -117,49 +115,20 @@ def remove_watermark_opencv(
     # 检查 mask 是否有白色区域
     if cv2.countNonZero(mask) == 0:
         logger.warning("mask 中没有水印区域, 跳过处理")
-        cap.release()
         return {"output": str(video_path), "frames_processed": 0}
 
-    # 输出路径: 先写无音频的临时文件, 最后混合原音频
-    OUTPUT_WATERMARK.mkdir(parents=True, exist_ok=True)
-    if output_path is None:
-        output_path = OUTPUT_WATERMARK / f"{video_path.stem}_no_wm.mp4"
-    output_path = Path(output_path)
+    logger.info(f"去水印处理: {video_path.name} ({method})")
 
-    temp_video = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
-    temp_video_path = temp_video.name
-    temp_video.close()
+    frames_processed = 0
+    with VideoFrameProcessor(video_path, output_path) as vp:
+        for frame in vp.frames(desc="逐帧修复"):
+            # inpaint 修复
+            repaired = cv2.inpaint(frame, mask, inpaint_radius, inpaint_flags)
+            vp.write(repaired)
+            frames_processed += 1
 
-    # 写视频 (无音频)
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    writer = cv2.VideoWriter(temp_video_path, fourcc, fps, (width, height))
-
-    logger.info(f"去水印处理: {video_path.name} ({total_frames} 帧, {method})")
-
-    from tqdm import tqdm
-    frames_done = 0
-
-    for _ in tqdm(range(total_frames), desc="逐帧修复", unit="帧"):
-        ret, frame = cap.read()
-        if not ret:
-            break
-
-        # inpaint 修复
-        repaired = cv2.inpaint(frame, mask, inpaint_radius, inpaint_flags)
-        writer.write(repaired)
-        frames_done += 1
-
-    cap.release()
-    writer.release()
-
-    # 混合原视频音频 + 修复后的视频画面
-    merge_audio(video_path, temp_video_path, output_path)
-
-    # 清理临时文件
-    Path(temp_video_path).unlink(missing_ok=True)
-
-    logger.info(f"✅ 去水印完成: {output_path.name} ({frames_done} 帧)")
-    return {"output": str(output_path), "frames_processed": frames_done}
+    logger.info(f"✅ 去水印完成: {output_path.name}")
+    return {"output": str(output_path), "frames_processed": frames_processed}
 
 
 

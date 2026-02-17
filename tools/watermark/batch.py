@@ -7,8 +7,6 @@
 """
 from pathlib import Path
 
-import sys
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from config import INPUT_DIR, ensure_dirs
 from tools.common import scan_videos, batch_process, print_summary, logger
@@ -32,8 +30,7 @@ def batch_remove_watermark_opencv(
     regions: list[tuple[int, int, int, int]] | None = None,
     mask_path: str | Path | None = None,
     method: str = "telea",
-    inpaint_radius: int = 5,
-    feather: int = 3,
+    **kwargs,
 ) -> list[dict]:
     """
     批量去水印 (OpenCV) — 对 input 目录下所有视频应用相同水印区域
@@ -56,8 +53,7 @@ def batch_remove_watermark_opencv(
         regions=regions,
         mask_path=mask_path,
         method=method,
-        inpaint_radius=inpaint_radius,
-        feather=feather,
+        **kwargs,
     )
     print_summary(results)
     return results
@@ -68,8 +64,8 @@ def batch_remove_watermark_lama(
     videos: list[Path] | None = None,
     regions: list[tuple[int, int, int, int]] | None = None,
     mask_path: str | Path | None = None,
-    device: str = "mps",
-    feather: int = 5,
+    device: str | None = None,
+    **kwargs,
 ) -> list[dict]:
     """
     批量去水印 (LaMA) — 对 input 目录下所有视频应用相同水印区域
@@ -83,7 +79,6 @@ def batch_remove_watermark_lama(
         feather: 边缘羽化
     """
     ensure_dirs()
-    ensure_dirs()
     if videos is None:
         videos = scan_videos(input_dir or INPUT_DIR)
     results = batch_process(
@@ -93,7 +88,7 @@ def batch_remove_watermark_lama(
         regions=regions,
         mask_path=mask_path,
         device=device,
-        feather=feather,
+        **kwargs,
     )
     print_summary(results)
     return results

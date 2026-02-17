@@ -7,8 +7,6 @@
 """
 from pathlib import Path
 
-import sys
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from config import INPUT_DIR, ensure_dirs
 from tools.common import scan_media, batch_process, print_summary, logger
@@ -29,7 +27,8 @@ def _batch_image_worker(file_path: Path, **kwargs) -> dict:
 def batch_add_text_watermark(
     input_dir: str | Path | None = None,
     files: list[Path] | None = None,
-    text: str = "",
+    opacity: float = 0.5,
+    margin: int = 20,
     **kwargs,
 ) -> list[dict]:
     """
@@ -38,7 +37,8 @@ def batch_add_text_watermark(
     Args:
         input_dir: 输入目录
         files: 文件列表 (优先使用)
-        text: 水印文字
+        opacity: 水印不透明度
+        margin: 水印边距
         **kwargs: 传递给 add_text_watermark 的参数
     """
     ensure_dirs()
@@ -50,7 +50,8 @@ def batch_add_text_watermark(
         files,
         _batch_text_worker,
         desc="批量添加文字水印",
-        text=text,
+        opacity=opacity,
+        margin=margin,
         **kwargs,
     )
     print_summary(results)
@@ -61,6 +62,8 @@ def batch_add_image_watermark(
     input_dir: str | Path | None = None,
     files: list[Path] | None = None,
     watermark_path: str | Path = "",
+    opacity: float = 0.5,
+    margin: int = 20,
     **kwargs,
 ) -> list[dict]:
     """
@@ -70,6 +73,8 @@ def batch_add_image_watermark(
         input_dir: 输入目录
         files: 文件列表 (优先使用)
         watermark_path: Logo 图片路径
+        opacity: 水印不透明度
+        margin: 水印边距
         **kwargs: 传递给 add_image_watermark 的参数
     """
     ensure_dirs()
@@ -82,6 +87,8 @@ def batch_add_image_watermark(
         _batch_image_worker,
         desc="批量添加 Logo 水印",
         watermark_path=watermark_path,
+        opacity=opacity,
+        margin=margin,
         **kwargs,
     )
     print_summary(results)
@@ -104,6 +111,7 @@ if __name__ == "__main__":
     text_p.add_argument("-t", "--text", required=True, help="水印文字")
     text_p.add_argument("--font", help="字体文件路径")
     text_p.add_argument("--font-size", type=int, default=36)
+    text_p.add_argument("--color", default="white", help="字体颜色")
     text_p.add_argument("--opacity", type=float, default=0.7)
     text_p.add_argument("--position", default="bottom-right")
     text_p.add_argument("--margin", type=int, default=20)
@@ -124,6 +132,7 @@ if __name__ == "__main__":
             text=args.text,
             font_path=args.font,
             font_size=args.font_size,
+            color=args.color,
             opacity=args.opacity,
             position=args.position,
             margin=args.margin,

@@ -16,9 +16,6 @@ from InquirerPy import inquirer
 from InquirerPy.base.control import Choice
 from InquirerPy.separator import Separator
 
-# 添加项目路径
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
 from config import INPUT_DIR, UPSCALE_FACTOR, INTERPOLATION_TARGET_FPS
 from tools.common import scan_videos, scan_media, logger
 
@@ -43,7 +40,8 @@ def get_input_videos() -> list[Path]:
     ).execute()
 
     if mode == "scan":
-        videos = scan_videos(INPUT_DIR)
+        recursive = inquirer.confirm(message="是否递归扫描子目录?", default=False).execute()
+        videos = scan_videos(INPUT_DIR, recursive=recursive)
         print(f"扫描到 {len(videos)} 个视频")
         return videos
     
@@ -61,7 +59,8 @@ def get_input_videos() -> list[Path]:
             validate=lambda x: Path(x).is_dir(),
             only_directories=True,
         ).execute()
-        videos = scan_videos(path_str)
+        recursive = inquirer.confirm(message="是否递归扫描子目录?", default=False).execute()
+        videos = scan_videos(path_str, recursive=recursive)
         print(f"扫描到 {len(videos)} 个视频")
         return videos
     
@@ -80,7 +79,8 @@ def get_input_media() -> list[Path]:
     ).execute()
 
     if mode == "scan":
-        videos, images = scan_media(INPUT_DIR)
+        recursive = inquirer.confirm(message="是否递归扫描子目录?", default=False).execute()
+        videos, images = scan_media(INPUT_DIR, recursive=recursive)
         files = images + videos
         print(f"扫描到 {len(images)} 个图片, {len(videos)} 个视频")
         return files
@@ -99,7 +99,8 @@ def get_input_media() -> list[Path]:
             validate=lambda x: Path(x).is_dir(),
             only_directories=True,
         ).execute()
-        videos, images = scan_media(path_str)
+        recursive = inquirer.confirm(message="是否递归扫描子目录?", default=False).execute()
+        videos, images = scan_media(path_str, recursive=recursive)
         files = images + videos
         print(f"扫描到 {len(images)} 个图片, {len(videos)} 个视频")
         return files
@@ -121,6 +122,12 @@ def menu_extract(videos: list[Path]):
         start = inquirer.text(message="开始时间 (秒 or 00:00:00):", default="0").execute()
         duration = inquirer.text(message="持续时长 (秒):", default="10").execute()
         
+        if inquirer.confirm(message=f"是否查看将要处理的 {len(videos)} 个文件列表?", default=False).execute():
+            print("\n文件列表:")
+            for v in videos:
+                print(f"  - {v.name}")
+            print()
+
         if inquirer.confirm(message=f"确认截取 {len(videos)} 个视频?", default=True).execute():
             batch_extract_clips(videos=videos, start=start, duration=duration)
 
@@ -232,6 +239,14 @@ def menu_upscale(videos: list[Path]):
         default=2
     ).execute())
     
+
+    
+    if inquirer.confirm(message=f"是否查看将要处理的 {len(videos)} 个文件列表?", default=False).execute():
+        print("\n文件列表:")
+        for v in videos:
+            print(f"  - {v.name}")
+        print()
+
     if inquirer.confirm(message=f"确认放大 {len(videos)} 个视频?", default=True).execute():
         if engine == "ffmpeg":
             batch_upscale_ffmpeg(videos=videos, scale=scale) # 需修改 batch.py 支持直接传 videos
@@ -299,6 +314,12 @@ def menu_add_watermark(media: list[Path]):
         font_size = int(inquirer.number(message="字号:", default=36).execute())
         opacity = float(inquirer.text(message="透明度 (0.0~1.0):", default="0.7").execute())
 
+        if inquirer.confirm(message=f"是否查看将要处理的 {len(media)} 个文件列表?", default=False).execute():
+            print("\n文件列表:")
+            for v in media:
+                print(f"  - {v.name}")
+            print()
+
         if inquirer.confirm(message=f"确认为 {len(media)} 个文件添加文字水印?", default=True).execute():
             batch_add_text_watermark(
                 files=media, text=text,
@@ -325,6 +346,12 @@ def menu_add_watermark(media: list[Path]):
 
         scale = float(inquirer.text(message="Logo 大小比例 (0.0~1.0):", default="0.15").execute())
         opacity = float(inquirer.text(message="透明度 (0.0~1.0):", default="0.7").execute())
+
+        if inquirer.confirm(message=f"是否查看将要处理的 {len(media)} 个文件列表?", default=False).execute():
+            print("\n文件列表:")
+            for v in media:
+                print(f"  - {v.name}")
+            print()
 
         if inquirer.confirm(message=f"确认为 {len(media)} 个文件添加 Logo 水印?", default=True).execute():
             batch_add_image_watermark(
@@ -397,8 +424,8 @@ def main():
                 menu_upscale(videos)
             elif module == "interpolate":
                 menu_interpolate(videos)
-            
-        print("\n✅ 任务完成!\n")
+
+        print()
         if not inquirer.confirm(message="继续其他操作?", default=True).execute():
             break
 

@@ -5,13 +5,26 @@ import json
 import logging
 import subprocess
 import sys
+import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from datetime import datetime
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Generator
 
-from tqdm import tqdm
+import cv2
+import numpy as np
+from rich.progress import (
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    BarColumn,
+    TaskProgressColumn,
+    TimeRemainingColumn,
+    MofNCompleteColumn,
+)
+from rich.console import Console
 
-from config import VIDEO_EXTENSIONS, IMAGE_EXTENSIONS, FFPROBE_BIN, FFMPEG_BIN
+from config import VIDEO_EXTENSIONS, IMAGE_EXTENSIONS, FFPROBE_BIN, FFMPEG_BIN, OUTPUT_DIR
 
 # ============================================================
 # 日志配置
@@ -22,6 +35,20 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 logger = logging.getLogger("x-tools")
+console = Console()
+
+
+# ============================================================
+# 辅助函数: 文件名生成
+# ============================================================
+def generate_output_name(stem: str, suffix: str, tag: str = "") -> str:
+    """
+    生成带时间戳的输出文件名, 避免覆盖
+    格式: {stem}_{tag}_{MMDD_HHMMSS}{suffix}
+    """
+    timestamp = datetime.now().strftime("%m%d_%H%M%S")
+    tag_part = f"_{tag}" if tag else ""
+    return f"{stem}{tag_part}_{timestamp}{suffix}"
 
 
 # ============================================================
@@ -30,16 +57,6 @@ logger = logging.getLogger("x-tools")
 def get_video_info(video_path: str | Path) -> dict:
     """
     使用 ffprobe 获取视频信息 (时长、分辨率、帧率等)
-
-    Returns:
-        dict: {
-            "duration": float,   # 秒
-            "width": int,
-            "height": int,
-            "fps": float,
-            "codec": str,
-            "bitrate": int,      # bps
-        }
     """
     video_path = str(video_path)
     cmd = [
@@ -85,148 +102,278 @@ def get_video_info(video_path: str | Path) -> dict:
 # ============================================================
 # 文件扫描
 # ============================================================
-def scan_videos(directory: str | Path) -> list[Path]:
+def scan_videos(directory: str | Path, recursive: bool = False) -> list[Path]:
     """
-    扫描目录下所有支持的视频文件 (非递归)
-
-    Returns:
-        list[Path]: 排序后的视频文件列表
+    扫描目录下所有支持的视频文件
     """
     directory = Path(directory)
     if not directory.is_dir():
         logger.error(f"目录不存在: {directory}")
         return []
 
+    pattern = "**/*" if recursive else "*"
     videos = sorted(
-        f for f in directory.iterdir()
+        f for f in directory.glob(pattern)
         if f.is_file() and f.suffix.lower() in VIDEO_EXTENSIONS
     )
-    logger.info(f"扫描到 {len(videos)} 个视频文件: {directory}")
+    logger.info(f"扫描到 {len(videos)} 个视频文件: {directory} (递归: {recursive})")
     return videos
 
 
-def scan_images(directory: str | Path) -> list[Path]:
+def scan_images(directory: str | Path, recursive: bool = False) -> list[Path]:
     """
-    扫描目录下所有支持的图片文件 (非递归)
-
-    Returns:
-        list[Path]: 排序后的图片文件列表
+    扫描目录下所有支持的图片文件
     """
     directory = Path(directory)
     if not directory.is_dir():
         logger.error(f"目录不存在: {directory}")
         return []
 
+    pattern = "**/*" if recursive else "*"
     images = sorted(
-        f for f in directory.iterdir()
+        f for f in directory.glob(pattern)
         if f.is_file() and f.suffix.lower() in IMAGE_EXTENSIONS
     )
-    logger.info(f"扫描到 {len(images)} 个图片文件: {directory}")
+    logger.info(f"扫描到 {len(images)} 个图片文件: {directory} (递归: {recursive})")
     return images
 
 
-def scan_media(directory: str | Path) -> tuple[list[Path], list[Path]]:
+def scan_media(directory: str | Path, recursive: bool = False) -> tuple[list[Path], list[Path]]:
     """
     扫描目录下所有支持的媒体文件 (视频 + 图片)
-
-    Returns:
-        tuple: (videos, images)
     """
-    return scan_videos(directory), scan_images(directory)
+    return scan_videos(directory, recursive), scan_images(directory, recursive)
 
 
 # ============================================================
-# 批量执行器
+# 批量执行器 (Rich Progress)
 # ============================================================
 def batch_process(
     videos: list[Path],
     process_fn: Callable,
     desc: str = "处理中",
     max_workers: int = 1,
+    dry_run: bool = False,
     **kwargs,
 ) -> list[dict]:
     """
     批量处理视频文件
-
-    Args:
-        videos: 视频文件列表
-        process_fn: 处理函数, 签名为 process_fn(video_path: Path, **kwargs) -> dict
-        desc: 进度条描述
-        max_workers: 并行工作进程数 (默认 1，串行执行)
-        **kwargs: 传递给 process_fn 的额外参数
-
-    Returns:
-        list[dict]: 每个视频的处理结果
     """
     results = []
-
+    
     if not videos:
-        logger.warning("没有需要处理的视频文件")
+        logger.warning("没有需要处理的文件")
         return results
 
-    if max_workers <= 1:
-        # 串行执行 — 带进度条
-        for video in tqdm(videos, desc=desc, unit="个"):
-            try:
-                result = process_fn(video, **kwargs)
-                results.append({"file": str(video), "status": "success", **result})
-            except Exception as e:
-                logger.error(f"处理失败: {video.name} — {e}")
-                results.append({"file": str(video), "status": "error", "error": str(e)})
-    else:
-        # 并行执行
-        with ProcessPoolExecutor(max_workers=max_workers) as executor:
-            futures = {
-                executor.submit(process_fn, v, **kwargs): v for v in videos
-            }
-            for future in tqdm(
-                as_completed(futures), total=len(futures), desc=desc, unit="个"
-            ):
-                video = futures[future]
-                try:
-                    result = future.result()
-                    results.append({"file": str(video), "status": "success", **result})
-                except Exception as e:
-                    logger.error(f"处理失败: {video.name} — {e}")
-                    results.append({"file": str(video), "status": "error", "error": str(e)})
+    if dry_run:
+        print(f"\nExample dry run for {len(videos)} files:")
+        for v in videos[:5]:
+            print(f"  - {v.name}")
+        if len(videos) > 5:
+            print(f"  ... and {len(videos) - 5} more")
+        return []
 
+    # 记录总开始时间
+    start_time_all = time.time()
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TaskProgressColumn(),
+        MofNCompleteColumn(),
+        TimeRemainingColumn(),
+        console=console,
+    ) as progress:
+        task_id = progress.add_task(desc, total=len(videos))
+
+        if max_workers <= 1:
+            # 串行执行
+            for video in videos:
+                start_time = time.time()
+                try:
+                    result = process_fn(video, **kwargs)
+                    elapsed = time.time() - start_time
+                    results.append({"file": str(video), "status": "success", "elapsed": elapsed, **result})
+                except Exception as e:
+                    elapsed = time.time() - start_time
+                    logger.error(f"处理失败: {video.name} — {e}")
+                    results.append({"file": str(video), "status": "error", "error": str(e), "elapsed": elapsed})
+                finally:
+                    progress.advance(task_id)
+        else:
+            # 并行执行
+            with ProcessPoolExecutor(max_workers=max_workers) as executor:
+                futures = {
+                    executor.submit(process_fn, v, **kwargs): v for v in videos
+                }
+                for future in as_completed(futures):
+                    video = futures[future]
+                    start_time = time.time() # 注意:这是近似时间,并行下不准确
+                    try:
+                        result = future.result()
+                        # 这里无法准确获取单个任务执行时间,暂用0
+                        results.append({"file": str(video), "status": "success", "elapsed": 0.0, **result})
+                    except Exception as e:
+                        logger.error(f"处理失败: {video.name} — {e}")
+                        results.append({"file": str(video), "status": "error", "error": str(e), "elapsed": 0.0})
+                    finally:
+                        progress.advance(task_id)
+
+    total_elapsed = time.time() - start_time_all
+    
     # 汇总
     success = sum(1 for r in results if r["status"] == "success")
     failed = len(results) - success
-    logger.info(f"批量处理完成: ✅ {success} 成功, ❌ {failed} 失败")
+    logger.info(f"批量处理完成: ✅ {success} 成功, ❌ {failed} 失败, 总耗时: {total_elapsed:.1f}s")
 
     return results
 
 
 def print_summary(results: list[dict]):
     """打印批量处理结果摘要"""
+    if not results:
+        return
+
     print("\n" + "=" * 60)
     print("📊 处理结果摘要")
     print("=" * 60)
 
+    total_time = 0.0
     for r in results:
         name = Path(r["file"]).name
+        elapsed = r.get("elapsed", 0.0)
+        total_time += elapsed
         if r["status"] == "success":
-            print(f"  ✅ {name}")
+            time_str = f"({elapsed:.1f}s)" if elapsed > 0 else ""
+            print(f"  ✅ {name} {time_str}")
         else:
             print(f"  ❌ {name} — {r.get('error', '未知错误')}")
 
     success = sum(1 for r in results if r["status"] == "success")
-    print(f"\n合计: {success}/{len(results)} 成功")
+    avg_time = (total_time / len(results)) if results else 0
+    
+    print("-" * 60)
+    print(f"合计: {success}/{len(results)} 成功")
+    if total_time > 0:
+        print(f"平均耗时: {avg_time:.1f}s / 文件")
     print("=" * 60)
+
+
+# ============================================================
+# VideoProcessor 上下文管理器 (抽象基类)
+# ============================================================
+class VideoFrameProcessor:
+    """
+    通用视频逐帧处理上下文管理器
+    
+    Usage:
+        with VideoFrameProcessor(video_path, output_path) as vp:
+             for frame in vp.frames():
+                 processed_frame = do_something(frame)
+                 vp.write(processed_frame)
+    """
+    def __init__(self, input_path: str | Path, output_path: str | Path, enable_merge_audio: bool = True):
+        self.input_path = Path(input_path)
+        self.output_path = Path(output_path)
+        self.enable_merge_audio = enable_merge_audio
+        self.temp_path = None
+        self.cap = None
+        self.writer = None
+        self.fps = 0.0
+        self.width = 0
+        self.height = 0
+        self.total_frames = 0
+        self.frames_processed = 0
+
+    def __enter__(self):
+        self.cap = cv2.VideoCapture(str(self.input_path))
+        if not self.cap.isOpened():
+            raise RuntimeError(f"无法打开视频: {self.input_path}")
+
+        self.fps = self.cap.get(cv2.CAP_PROP_FPS)
+        self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        self.total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+        # 创建临时文件 (同目录下的隐藏文件)
+        import tempfile
+        # 使用 tempfile 生成临时文件，但在 output_path 同级目录，避免跨盘符移动慢
+        self.output_path.parent.mkdir(parents=True, exist_ok=True)
+        # 用 .tmp 后缀
+        self.temp_path = self.output_path.with_name(f".tmp_{self.output_path.name}")
+        
+        return self
+
+    def init_writer(self, width: int = 0, height: int = 0, fps: float = 0.0):
+        """初始化写入器 (可选, 默认使用原视频参数)"""
+        w = width if width > 0 else self.width
+        h = height if height > 0 else self.height
+        f = fps if fps > 0 else self.fps
+        
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        self.writer = cv2.VideoWriter(str(self.temp_path), fourcc, f, (w, h))
+
+    def frames(self, desc: str = "Processing") -> Generator[np.ndarray, None, None]:
+        """生成器：逐帧读取并显示进度条"""
+        if not self.writer:
+            self.init_writer() # 默认初始化
+
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TaskProgressColumn(),
+            TimeRemainingColumn(),
+            console=console,
+        ) as p:
+            task = p.add_task(desc, total=self.total_frames)
+            
+            while True:
+                ret, frame = self.cap.read()
+                if not ret:
+                    break
+                yield frame
+                p.advance(task)
+                self.frames_processed += 1
+
+    def write(self, frame: np.ndarray):
+        """写入一帧"""
+        if self.writer:
+            self.writer.write(frame)
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.cap:
+            self.cap.release()
+        if self.writer:
+            self.writer.release()
+        
+        if exc_type is None:
+            # 正常结束, 合并音频
+            if self.frames_processed > 0 and self.enable_merge_audio:
+                merge_audio(self.input_path, self.temp_path, self.output_path)
+            elif self.frames_processed > 0 and not self.enable_merge_audio:
+                # 不合并音频, 直接移动/重命名临时文件到输出路径
+                import shutil
+                if self.output_path.exists():
+                     self.output_path.unlink()
+                shutil.move(str(self.temp_path), str(self.output_path))
+            
+            # 清理临时文件 (如果是 move 则已不存在, 但 unlink missing_ok=True 安全)
+            if self.temp_path and self.temp_path.exists():
+                self.temp_path.unlink()
+        else:
+            # 异常结束, 保留临时文件供调试? 或者清理
+            if self.temp_path and self.temp_path.exists():
+                self.temp_path.unlink()
 
 
 # ============================================================
 # 音频合并 (公共)
 # ============================================================
-def merge_audio(original_video: Path, processed_video: str, output_path: Path):
+def merge_audio(original_video: Path, processed_video: Path, output_path: Path):
     """
     将原视频的音频合并到处理后的视频中
-
-    Args:
-        original_video: 原始视频路径 (取音频)
-        processed_video: 处理后的视频路径 (取视频流, 无音频)
-        output_path: 最终输出路径
     """
     cmd = [
         FFMPEG_BIN, "-y",
@@ -241,13 +388,7 @@ def merge_audio(original_video: Path, processed_video: str, output_path: Path):
     ]
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
-        # 如果混合失败 (比如原视频无音频), 直接用 libx264 重编码视频
+        # 如果混合失败, 直接复制
         logger.warning("音频混合失败, 仅输出视频")
-        cmd_fallback = [
-            FFMPEG_BIN, "-y",
-            "-i", str(processed_video),
-            "-c:v", "libx264", "-crf", "18", "-preset", "fast",
-            "-an",
-            str(output_path),
-        ]
-        subprocess.run(cmd_fallback, capture_output=True, text=True, check=True)
+        import shutil
+        shutil.copy(processed_video, output_path)

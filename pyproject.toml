@@ -1,0 +1,11 @@
+[project]
+name = "x-tools"
+version = "0.2.0"
+description = "视频处理工具箱 — 去水印、加水印、超分、插帧、关键帧提取"
+requires-python = ">=3.10"
+
+[tool.setuptools.packages.find]
+include = ["tools*", "config"]
+
+[tool.setuptools]
+py-modules = ["config"]

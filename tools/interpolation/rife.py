@@ -15,18 +15,15 @@ RIFE 视频插帧模块
   python tools/interpolation/rife.py video.mp4 --target-fps 60
   python tools/interpolation/rife.py video.mp4 --multiplier 4
 """
-import subprocess
 import tempfile
 from pathlib import Path
 
 import cv2
 import numpy as np
 
-import sys
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from config import FFMPEG_BIN, OUTPUT_INTERPOLATION, INTERPOLATION_TARGET_FPS
-from tools.common import get_video_info, logger, merge_audio
+from config import OUTPUT_INTERPOLATION, INTERPOLATION_TARGET_FPS
+from tools.common import logger, VideoFrameProcessor, generate_output_name
 
 
 def _check_rife_ncnn():
@@ -67,10 +64,6 @@ def interpolate_video_rife(
         output_path: 输出路径
         multiplier: 帧率倍数 (2=双倍帧率, 4=四倍), 与 target_fps 二选一
         target_fps: 目标帧率 (如 60), 与 multiplier 二选一
-
-    Returns:
-        dict: {"output": str, "frames_processed": int,
-               "original_fps": float, "new_fps": float}
     """
     try:
         from rife_ncnn_vulkan import Rife
@@ -85,15 +78,13 @@ def interpolate_video_rife(
     if not video_path.is_file():
         raise FileNotFoundError(f"视频文件不存在: {video_path}")
 
-    # 打开视频
+    # 获取基本信息计算倍数
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
         raise RuntimeError(f"无法打开视频: {video_path}")
-
     fps = cap.get(cv2.CAP_PROP_FPS)
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    cap.release()
 
     # 计算倍数
     if target_fps and not multiplier:
@@ -108,79 +99,102 @@ def interpolate_video_rife(
         m //= 2
         rife_passes += 1
     actual_multiplier = 2 ** rife_passes
-
     new_fps = fps * actual_multiplier
 
     # 初始化 RIFE
     rife = Rife(gpuid=0)
 
-    # 输出路径
     OUTPUT_INTERPOLATION.mkdir(parents=True, exist_ok=True)
     if output_path is None:
-        output_path = OUTPUT_INTERPOLATION / f"{video_path.stem}_{actual_multiplier}x_{new_fps:.0f}fps.mp4"
+        output_path = OUTPUT_INTERPOLATION / generate_output_name(
+            video_path.stem, ".mp4", f"_{actual_multiplier}x_{new_fps:.0f}fps"
+        )
     output_path = Path(output_path)
-
-    temp_video = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
-    temp_video_path = temp_video.name
-    temp_video.close()
-
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    writer = cv2.VideoWriter(temp_video_path, fourcc, new_fps, (width, height))
 
     logger.info(
         f"RIFE 插帧: {video_path.name} ({fps:.1f}fps → {new_fps:.0f}fps, "
-        f"{actual_multiplier}x, {rife_passes} passes, {total_frames} 帧)"
+        f"{actual_multiplier}x, {rife_passes} passes)"
     )
 
-    from tqdm import tqdm
+    # 多趟处理 (streaming processing to avoid OOM)
+    current_input = video_path
+    current_output = None
+    intermediate_files = []
 
-    # 读取所有帧
-    frames = []
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
-        frames.append(frame)
-    cap.release()
-
-    if len(frames) < 2:
-        raise ValueError("视频帧数不足 (至少需要 2 帧)")
-
-    # 逐 pass 插帧
     for pass_idx in range(rife_passes):
-        new_frames = []
+        is_last_pass = (pass_idx == rife_passes - 1)
+        
+        if is_last_pass:
+            current_output = output_path
+        else:
+            # 中间文件使用临时文件
+            tf = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
+            current_output = Path(tf.name)
+            tf.close()
+            intermediate_files.append(current_output)
+
         desc = f"RIFE Pass {pass_idx + 1}/{rife_passes}"
-        for i in tqdm(range(len(frames) - 1), desc=desc, unit="帧"):
-            new_frames.append(frames[i])
-            mid = _interpolate_frames_ncnn(frames[i], frames[i + 1], rife)
-            new_frames.append(mid)
-        new_frames.append(frames[-1])  # 最后一帧
-        frames = new_frames
+        
+        # 使用 VideoFrameProcessor 进行处理
+        # 只有最后一趟需要合并音频 (直接从原始 video_path 合并? 不, VideoFrameProcessor 默认从 input_path 合并)
+        # 这里的 input_path 在 pass 2 是中间文件 (无音频或有音频). 
+        # VideoFrameProcessor(enable_merge_audio=True) 会尝试从 input_path 提取音频
+        # 建议: 第一趟不合并音频 (因输出是temp), 最后一趟合并音频 (从原始 video_path).
+        # 但 VideoFrameProcessor 只能从 *它的* input_path 合并.
+        # 所以我们需要 ensure intermediate files have audio? or manually merge at the end.
+        # VideoFrameProcessor merge logic is: `merge_audio(self.input_path, ...)`
+        # RIFE 导致视频变慢(如果音频不处理)? 不, fps变了, 时长不变.
+        # 所以音频可以直接 copy.
+        # 方案: 
+        # Pass 1 (Input=Source, Output=Temp1): Copy audio? Yes.
+        # Pass 2 (Input=Temp1, Output=Output): Copy audio? Yes.
+        # 这样每一趟都带音频.
+        
+        with VideoFrameProcessor(
+            current_input, 
+            current_output, 
+            enable_merge_audio=True 
+        ) as vp:
+            # 必须重新计算 fps, 因为每一趟 fps 翻倍
+            current_pass_fps = fps * (2 ** (pass_idx + 1))
+            vp.init_writer(fps=current_pass_fps)
+            
+            frame_gen = vp.frames(desc=desc)
+            
+            try:
+                frame1 = next(frame_gen)
+            except StopIteration:
+                break
+                
+            for frame2 in frame_gen:
+                # 插帧
+                mid = _interpolate_frames_ncnn(frame1, frame2, rife)
+                vp.write(frame1)
+                vp.write(mid)
+                frame1 = frame2
+            
+            # 写入最后一帧
+            vp.write(frame1)
 
-    # 写入所有帧
-    for frame in tqdm(frames, desc="写入视频", unit="帧"):
-        writer.write(frame)
+        # 更新下一趟的输入
+        current_input = current_output
 
-    writer.release()
-    frames_out = len(frames)
-
-    # 合并音频 (变速处理: 音频保持原始时长)
-    merge_audio(video_path, temp_video_path, output_path)
-    Path(temp_video_path).unlink(missing_ok=True)
+    # 清理中间文件
+    for f in intermediate_files:
+        if f.exists():
+            f.unlink()
 
     logger.info(
         f"✅ 插帧完成: {output_path.name} "
-        f"({fps:.1f}fps → {new_fps:.0f}fps, {total_frames} → {frames_out} 帧)"
+        f"({fps:.1f}fps → {new_fps:.0f}fps)"
     )
 
     return {
         "output": str(output_path),
-        "frames_processed": frames_out,
+        "frames_processed": total_frames * actual_multiplier, # 近似值
         "original_fps": round(fps, 2),
         "new_fps": round(new_fps, 2),
     }
-
-
 
 
 # ============================================================

@@ -13,18 +13,15 @@ Real-ESRGAN 视频超分辨率模块
   python tools/upscale/realesrgan.py video.mp4
   python tools/upscale/realesrgan.py video.mp4 --scale 4
 """
-import subprocess
-import tempfile
+import sys
 from pathlib import Path
 
 import cv2
 import numpy as np
 
-import sys
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from config import FFMPEG_BIN, OUTPUT_UPSCALE, UPSCALE_FACTOR
-from tools.common import get_video_info, logger, merge_audio
+from config import OUTPUT_UPSCALE, UPSCALE_FACTOR
+from tools.common import logger, VideoFrameProcessor, generate_output_name
 
 
 def _check_realesrgan():
@@ -127,72 +124,47 @@ def upscale_video_realesrgan(
     # 初始化模型
     upsampler = _init_upsampler(scale, device)
 
-    # 打开视频
-    cap = cv2.VideoCapture(str(video_path))
-    if not cap.isOpened():
-        raise RuntimeError(f"无法打开视频: {video_path}")
-
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
-    new_width = width * scale
-    new_height = height * scale
-
-    # 输出路径
     OUTPUT_UPSCALE.mkdir(parents=True, exist_ok=True)
     if output_path is None:
-        output_path = OUTPUT_UPSCALE / f"{video_path.stem}_{scale}x.mp4"
+        output_path = OUTPUT_UPSCALE / generate_output_name(video_path.stem, ".mp4", f"_{scale}x")
     output_path = Path(output_path)
 
-    # 临时文件 (无音频)
-    temp_video = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
-    temp_video_path = temp_video.name
-    temp_video.close()
+    logger.info(f"超分处理: {video_path.name} (scale={scale}x)")
 
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    writer = cv2.VideoWriter(temp_video_path, fourcc, fps, (new_width, new_height))
+    frames_processed = 0
+    original_size = ""
+    upscaled_size = ""
 
-    logger.info(
-        f"超分处理: {video_path.name} ({width}x{height} → {new_width}x{new_height}, "
-        f"{total_frames} 帧, {scale}x)"
-    )
+    with VideoFrameProcessor(video_path, output_path) as vp:
+        width, height = vp.width, vp.height
+        new_width = width * scale
+        new_height = height * scale
+        
+        original_size = f"{width}x{height}"
+        upscaled_size = f"{new_width}x{new_height}"
 
-    from tqdm import tqdm
-    frames_done = 0
+        # 初始化 writer
+        vp.init_writer(width=new_width, height=new_height)
+        
+        desc = f"Real-ESRGAN {scale}x"
+        for frame in vp.frames(desc=desc):
+            # Real-ESRGAN 推理
+            try:
+                output, _ = upsampler.enhance(frame, outscale=scale)
+                vp.write(output)
+            except Exception as e:
+                # 某些帧可能出错, 用 OpenCV resize 作为 fallback
+                logger.warning(f"帧 {frames_processed} 推理失败, 使用 bicubic 回退: {e}")
+                fallback = cv2.resize(frame, (new_width, new_height), interpolation=cv2.INTER_CUBIC)
+                vp.write(fallback)
+            
+            frames_processed += 1
 
-    for _ in tqdm(range(total_frames), desc=f"Real-ESRGAN {scale}x", unit="帧"):
-        ret, frame = cap.read()
-        if not ret:
-            break
-
-        # Real-ESRGAN 推理
-        try:
-            output, _ = upsampler.enhance(frame, outscale=scale)
-            writer.write(output)
-        except Exception as e:
-            # 某些帧可能出错, 用 OpenCV resize 作为 fallback
-            logger.warning(f"帧 {frames_done} 推理失败, 使用 bicubic 回退: {e}")
-            fallback = cv2.resize(frame, (new_width, new_height), interpolation=cv2.INTER_CUBIC)
-            writer.write(fallback)
-
-        frames_done += 1
-
-    cap.release()
-    writer.release()
-
-    # 合并音频
-    merge_audio(video_path, temp_video_path, output_path)
-    Path(temp_video_path).unlink(missing_ok=True)
-
-    original_size = f"{width}x{height}"
-    upscaled_size = f"{new_width}x{new_height}"
     logger.info(f"✅ 超分完成: {output_path.name} ({original_size} → {upscaled_size})")
 
     return {
         "output": str(output_path),
-        "frames_processed": frames_done,
+        "frames_processed": frames_processed,
         "original_size": original_size,
         "upscaled_size": upscaled_size,
     }

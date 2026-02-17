@@ -7,8 +7,6 @@
 """
 from pathlib import Path
 
-import sys
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from config import INPUT_DIR, INTERPOLATION_TARGET_FPS, ensure_dirs
 from tools.common import scan_videos, batch_process, print_summary, logger
@@ -30,7 +28,7 @@ def batch_interpolate_ffmpeg(
     input_dir: str | Path | None = None,
     videos: list[Path] | None = None,
     target_fps: float = INTERPOLATION_TARGET_FPS,
-    mode: str = "mci",
+    **kwargs,
 ) -> list[dict]:
     """
     批量 FFmpeg 插帧
@@ -46,9 +44,9 @@ def batch_interpolate_ffmpeg(
     results = batch_process(
         videos,
         _batch_ffmpeg_worker,
-        desc=f"批量插帧 (FFmpeg → {target_fps:.0f}fps)",
+        desc=f"批量插帧 (FFmpeg {target_fps} fps)",
         target_fps=target_fps,
-        mode=mode,
+        **kwargs,
     )
     print_summary(results)
     return results
@@ -57,8 +55,8 @@ def batch_interpolate_ffmpeg(
 def batch_interpolate_rife(
     input_dir: str | Path | None = None,
     videos: list[Path] | None = None,
-    multiplier: int | None = None,
-    target_fps: float | None = None,
+    multiplier: int = 2,
+    **kwargs,
 ) -> list[dict]:
     """
     批量 RIFE 插帧
@@ -69,15 +67,14 @@ def batch_interpolate_rife(
         target_fps: 目标帧率
     """
     ensure_dirs()
-    ensure_dirs()
     if videos is None:
         videos = scan_videos(input_dir or INPUT_DIR)
     results = batch_process(
         videos,
         _batch_rife_worker,
-        desc="批量插帧 (RIFE)",
+        desc=f"批量插帧 (RIFE {multiplier}x)",
         multiplier=multiplier,
-        target_fps=target_fps,
+        **kwargs,
     )
     print_summary(results)
     return results

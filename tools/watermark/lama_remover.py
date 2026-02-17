@@ -13,8 +13,6 @@ LaMA 深度学习去水印模块
 依赖:
   pip install torch torchvision
 """
-import subprocess
-import tempfile
 import urllib.request
 import os
 import sys
@@ -23,11 +21,9 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-# 添加项目根目录到 path
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
-from config import FFMPEG_BIN, OUTPUT_WATERMARK
-from tools.common import logger, merge_audio
+from config import OUTPUT_WATERMARK
+from tools.common import logger, VideoFrameProcessor, generate_output_name
 from tools.watermark.opencv_inpaint import create_mask_from_regions
 
 
@@ -131,96 +127,72 @@ def remove_watermark_lama(
     model = torch.jit.load(str(model_path), map_location=device)
     model.eval()
 
-    # 2. 准备视频和 Mask
-    cap = cv2.VideoCapture(str(video_path))
-    if not cap.isOpened():
-        raise RuntimeError(f"无法打开视频: {video_path}")
-
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
-    if mask_path:
-        mask_org = cv2.imread(str(mask_path), cv2.IMREAD_GRAYSCALE)
-        if mask_org is None:
-            raise FileNotFoundError(f"无法读取 mask: {mask_path}")
-        if mask_org.shape[:2] != (height, width):
-            mask_org = cv2.resize(mask_org, (width, height))
-    else:
-        # 创建 mask 并进行适当的预处理 (羽化等)
-        # 注意: LaMA 对 mask 的边缘比较敏感，通常二值 mask 即可，不需要过度羽化，但这里保留 feather 参数用于生成 mask
-        mask_org = create_mask_from_regions(width, height, regions, feather)
-        
-    # 确保 mask 是二值化的 (LaMA 输入需要)
-    _, mask_thresh = cv2.threshold(mask_org, 127, 255, cv2.THRESH_BINARY)
-
     # 3. 准备输出
     OUTPUT_WATERMARK.mkdir(parents=True, exist_ok=True)
     if output_path is None:
-        output_path = OUTPUT_WATERMARK / f"{video_path.stem}_no_wm_lama.mp4"
+        output_path = OUTPUT_WATERMARK / generate_output_name(video_path.stem, ".mp4", "_no_wm_lama")
     output_path = Path(output_path)
 
-    temp_video = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
-    temp_video_path = temp_video.name
-    temp_video.close()
+    frames_processed = 0
 
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-    writer = cv2.VideoWriter(temp_video_path, fourcc, fps, (width, height))
+    # 使用 VideoFrameProcessor 简化流程
+    with VideoFrameProcessor(video_path, output_path) as vp:
+        # 获取尺寸用于 mask 创建/padding 计算
+        width, height = vp.width, vp.height
 
-    logger.info(f"LaMA 去水印: {video_path.name} ({total_frames} 帧)")
-
-    # 4. 推理循环
-    from tqdm import tqdm
-    
-    # 预处理 Mask 为 Tensor
-    # LaMA 需要 mask 为 (1, 1, H, W) float32, 值为 0 或 1
-    pad_h = (8 - height % 8) % 8
-    pad_w = (8 - width % 8) % 8
-    
-    mask_float = (mask_thresh > 127).astype(np.float32)
-    if pad_h or pad_w:
-        mask_float = np.pad(mask_float, ((0, pad_h), (0, pad_w)), mode='reflect')
-        
-    mask_t = torch.from_numpy(mask_float).unsqueeze(0).unsqueeze(0).to(device)
-
-    for _ in tqdm(range(total_frames), desc="LaMA 修复", unit="帧"):
-        ret, frame = cap.read()
-        if not ret:
-            break
-
-        # BGR -> RGB -> Tensor
-        img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
-        
-        if pad_h or pad_w:
-            img_rgb = np.pad(img_rgb, ((0, pad_h), (0, pad_w), (0, 0)), mode='reflect')
+        # 2. 准备 Mask
+        if mask_path:
+            mask_org = cv2.imread(str(mask_path), cv2.IMREAD_GRAYSCALE)
+            if mask_org is None:
+                raise FileNotFoundError(f"无法读取 mask: {mask_path}")
+            if mask_org.shape[:2] != (height, width):
+                mask_org = cv2.resize(mask_org, (width, height))
+        else:
+            mask_org = create_mask_from_regions(width, height, regions, feather)
             
-        # (H, W, 3) -> (1, 3, H, W)
-        img_t = torch.from_numpy(img_rgb.transpose(2, 0, 1)).unsqueeze(0).to(device)
-
-        # Infer
-        with torch.no_grad():
-            output_t = model(img_t, mask_t)
-
-        # Tensor -> numpy -> BGR
-        output = output_t[0].cpu().numpy().transpose(1, 2, 0)
-        output = np.clip(output * 255, 0, 255).astype(np.uint8)
+        # 确保 mask 是二值化的
+        _, mask_thresh = cv2.threshold(mask_org, 127, 255, cv2.THRESH_BINARY)
         
+        # 预处理 Mask 为 Tensor
+        pad_h = (8 - height % 8) % 8
+        pad_w = (8 - width % 8) % 8
+        
+        mask_float = (mask_thresh > 127).astype(np.float32)
         if pad_h or pad_w:
-            output = output[:height, :width]
+            mask_float = np.pad(mask_float, ((0, pad_h), (0, pad_w)), mode='reflect')
             
-        output_bgr = cv2.cvtColor(output, cv2.COLOR_RGB2BGR)
-        writer.write(output_bgr)
+        mask_t = torch.from_numpy(mask_float).unsqueeze(0).unsqueeze(0).to(device)
 
-    cap.release()
-    writer.release()
+        logger.info(f"LaMA 去水印: {video_path.name}")
 
-    # 5. 合并音频
-    merge_audio(video_path, temp_video_path, output_path)
-    Path(temp_video_path).unlink(missing_ok=True)
+        # 4. 推理循环
+        for frame in vp.frames(desc="LaMA 修复"):
+            # BGR -> RGB -> Tensor
+            img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
+            
+            if pad_h or pad_w:
+                img_rgb = np.pad(img_rgb, ((0, pad_h), (0, pad_w), (0, 0)), mode='reflect')
+                
+            # (H, W, 3) -> (1, 3, H, W)
+            img_t = torch.from_numpy(img_rgb.transpose(2, 0, 1)).unsqueeze(0).to(device)
+
+            # Infer
+            with torch.no_grad():
+                output_t = model(img_t, mask_t)
+
+            # Tensor -> numpy -> BGR
+            output = output_t[0].cpu().numpy().transpose(1, 2, 0)
+            output = np.clip(output * 255, 0, 255).astype(np.uint8)
+            
+            if pad_h or pad_w:
+                output = output[:height, :width]
+                
+            output_bgr = cv2.cvtColor(output, cv2.COLOR_RGB2BGR)
+            vp.write(output_bgr)
+            frames_processed += 1
 
     logger.info(f"✅ LaMA 去水印完成: {output_path.name}")
-    return {"output": str(output_path), "frames_processed": total_frames}
+    return {"output": str(output_path), "frames_processed": frames_processed}
 
 
 # ============================================================
