@@ -24,7 +24,7 @@ import numpy as np
 
 from config import OUTPUT_WATERMARK
 from tools.common import logger, VideoFrameProcessor, generate_output_name
-from tools.watermark.opencv_inpaint import create_mask_from_regions
+from tools.watermark.opencv_inpaint import create_mask_from_regions, _scale_regions
 
 
 def _check_torch():
@@ -85,6 +85,8 @@ def remove_watermark_lama(
     output_path: str | Path | None = None,
     device: str | None = None,
     feather: int = 5,
+    ref_width: int = 0,
+    ref_height: int = 0,
 ) -> dict:
     """
     使用 LaMA 模型去除视频水印
@@ -96,6 +98,8 @@ def remove_watermark_lama(
         output_path: 输出路径
         device: 推理设备 ("mps" / "cpu" / "cuda"), None 自动选择
         feather: 区域边缘羽化 (mask处理用)
+        ref_width: ROI 坐标的参考分辨率宽度 (0=不缩放)
+        ref_height: ROI 坐标的参考分辨率高度 (0=不缩放)
     """
     if not _check_torch():
         raise RuntimeError("❌ 未安装 torch, 请运行: pip install torch torchvision")
@@ -139,6 +143,10 @@ def remove_watermark_lama(
     with VideoFrameProcessor(video_path, output_path) as vp:
         # 获取尺寸用于 mask 创建/padding 计算
         width, height = vp.width, vp.height
+
+        # 按参考分辨率缩放坐标
+        if regions and ref_width > 0 and ref_height > 0:
+            regions = _scale_regions(regions, ref_width, ref_height, width, height)
 
         # 2. 准备 Mask
         if mask_path:

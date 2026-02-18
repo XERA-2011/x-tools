@@ -30,6 +30,8 @@ def batch_remove_watermark_opencv(
     regions: list[tuple[int, int, int, int]] | None = None,
     mask_path: str | Path | None = None,
     method: str = "telea",
+    ref_width: int = 0,
+    ref_height: int = 0,
     **kwargs,
 ) -> list[dict]:
     """
@@ -40,6 +42,8 @@ def batch_remove_watermark_opencv(
         regions: 水印区域列表 [(x1,y1,x2,y2), ...]
         mask_path: mask 图片路径
         method: 修复算法
+        ref_width: ROI 坐标的参考分辨率宽度 (0=不缩放)
+        ref_height: ROI 坐标的参考分辨率高度 (0=不缩放)
         inpaint_radius: 修复半径
         feather: 边缘羽化
     """
@@ -53,6 +57,8 @@ def batch_remove_watermark_opencv(
         regions=regions,
         mask_path=mask_path,
         method=method,
+        ref_width=ref_width,
+        ref_height=ref_height,
         **kwargs,
     )
     print_summary(results)
@@ -65,6 +71,8 @@ def batch_remove_watermark_lama(
     regions: list[tuple[int, int, int, int]] | None = None,
     mask_path: str | Path | None = None,
     device: str | None = None,
+    ref_width: int = 0,
+    ref_height: int = 0,
     **kwargs,
 ) -> list[dict]:
     """
@@ -76,6 +84,8 @@ def batch_remove_watermark_lama(
         mask_path: mask 图片路径
         model: 模型名称
         device: 推理设备
+        ref_width: ROI 坐标的参考分辨率宽度 (0=不缩放)
+        ref_height: ROI 坐标的参考分辨率高度 (0=不缩放)
         feather: 边缘羽化
     """
     ensure_dirs()
@@ -88,6 +98,8 @@ def batch_remove_watermark_lama(
         regions=regions,
         mask_path=mask_path,
         device=device,
+        ref_width=ref_width,
+        ref_height=ref_height,
         **kwargs,
     )
     print_summary(results)

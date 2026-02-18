@@ -173,6 +173,10 @@ def menu_watermark(videos: list[Path]):
         ],
     ).execute()
 
+    # 参考分辨率 (仅在鼠标框选时记录)
+    ref_width = 0
+    ref_height = 0
+
     # 使用循环代替递归, 避免栈溢出
     while True:
         print("请输入水印区域坐标: x1,y1,x2,y2")
@@ -184,6 +188,8 @@ def menu_watermark(videos: list[Path]):
                 import cv2
                 sample_video = videos[0]
                 cap = cv2.VideoCapture(str(sample_video))
+                ref_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                ref_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                 total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
                 cap.set(cv2.CAP_PROP_POS_FRAMES, int(total * 0.2))
                 ret, frame = cap.read()
@@ -191,6 +197,7 @@ def menu_watermark(videos: list[Path]):
                 
                 if not ret:
                     print("❌ 无法读取视频帧，请手动输入")
+                    ref_width = ref_height = 0
                     continue
                     
                 print("\n📸 请在弹出的窗口中框选水印区域，按 Enter 或 Space 确认...")
@@ -201,10 +208,12 @@ def menu_watermark(videos: list[Path]):
                 
                 if w == 0 or h == 0:
                     print("⚠️ 未选择区域")
+                    ref_width = ref_height = 0
                     continue
                     
             except Exception as e:
                 print(f"❌ 启动图形界面失败: {e}\n请尝试手动输入坐标。")
+                ref_width = ref_height = 0
                 continue
         else:
             try:
@@ -218,9 +227,15 @@ def menu_watermark(videos: list[Path]):
     
     if inquirer.confirm(message=f"确认处理 {len(videos)} 个视频?", default=True).execute():
         if engine == "opencv":
-            batch_remove_watermark_opencv(videos=videos, regions=[(x1, y1, x2, y2)])
+            batch_remove_watermark_opencv(
+                videos=videos, regions=[(x1, y1, x2, y2)],
+                ref_width=ref_width, ref_height=ref_height,
+            )
         else:
-            batch_remove_watermark_lama(videos=videos, regions=[(x1, y1, x2, y2)])
+            batch_remove_watermark_lama(
+                videos=videos, regions=[(x1, y1, x2, y2)],
+                ref_width=ref_width, ref_height=ref_height,
+            )
 
 
 def menu_upscale(videos: list[Path]):

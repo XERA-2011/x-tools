@@ -56,6 +56,28 @@ def create_mask_from_regions(
     return mask
 
 
+def _scale_regions(
+    regions: list[tuple[int, int, int, int]],
+    ref_width: int,
+    ref_height: int,
+    target_width: int,
+    target_height: int,
+) -> list[tuple[int, int, int, int]]:
+    """
+    按比例缩放水印区域坐标 (从参考分辨率映射到目标分辨率)
+
+    仅当参考分辨率与目标分辨率差异 > 1% 时才缩放
+    """
+    sx = target_width / ref_width
+    sy = target_height / ref_height
+    if abs(sx - 1.0) < 0.01 and abs(sy - 1.0) < 0.01:
+        return regions
+    return [
+        (int(x1 * sx), int(y1 * sy), int(x2 * sx), int(y2 * sy))
+        for x1, y1, x2, y2 in regions
+    ]
+
+
 def remove_watermark_opencv(
     video_path: str | Path,
     regions: list[tuple[int, int, int, int]] | None = None,
@@ -64,6 +86,8 @@ def remove_watermark_opencv(
     method: str = "telea",
     inpaint_radius: int = WATERMARK_INPAINT_RADIUS,
     feather: int = 3,
+    ref_width: int = 0,
+    ref_height: int = 0,
 ) -> dict:
     """
     使用 OpenCV inpaint 去除视频水印
@@ -76,6 +100,8 @@ def remove_watermark_opencv(
         method: 修复算法 ("telea" 或 "ns")
         inpaint_radius: 修复半径 (越大修复范围越大, 但越模糊)
         feather: 区域边缘羽化像素
+        ref_width: ROI 坐标的参考分辨率宽度 (0=不缩放)
+        ref_height: ROI 坐标的参考分辨率高度 (0=不缩放)
 
     Returns:
         dict: {"output": str, "frames_processed": int}
@@ -100,6 +126,10 @@ def remove_watermark_opencv(
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     cap.release()
+
+    # 按参考分辨率缩放坐标
+    if regions and ref_width > 0 and ref_height > 0:
+        regions = _scale_regions(regions, ref_width, ref_height, width, height)
 
     # 创建或加载 mask
     if mask_path:
