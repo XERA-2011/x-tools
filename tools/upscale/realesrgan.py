@@ -13,6 +13,7 @@ Real-ESRGAN 视频超分辨率模块
   python tools/upscale/realesrgan.py video.mp4
   python tools/upscale/realesrgan.py video.mp4 --scale 4
 """
+import subprocess
 import sys
 from pathlib import Path
 
@@ -20,8 +21,8 @@ import cv2
 import numpy as np
 
 
-from config import OUTPUT_UPSCALE, UPSCALE_FACTOR
-from tools.common import logger, VideoFrameProcessor, generate_output_name
+from config import OUTPUT_UPSCALE, UPSCALE_FACTOR, FFMPEG_BIN
+from tools.common import logger, VideoFrameProcessor, generate_output_name, get_video_info
 
 
 def _check_realesrgan():
@@ -95,11 +96,52 @@ def _init_upsampler(scale: int = 2, device: str | None = None, model_name: str =
     return upsampler
 
 
+def _auto_select_scale(src_width: int, src_height: int, target_width: int, target_height: int) -> int:
+    """
+    根据源分辨率和目标分辨率, 自动选择最小 Real-ESRGAN 倍数 (2 或 4)
+    选择原则: 超分后的分辨率必须 >= 目标分辨率
+    """
+    ratio_w = target_width / src_width
+    ratio_h = target_height / src_height
+    ratio = max(ratio_w, ratio_h)
+
+    if ratio <= 2.0:
+        return 2
+    elif ratio <= 4.0:
+        return 4
+    else:
+        logger.warning(f"目标分辨率需要 {ratio:.1f}x 放大, 超出 Real-ESRGAN 4x 上限, 将使用 4x")
+        return 4
+
+
+def _ffmpeg_rescale(input_path: Path, output_path: Path, target_width: int, target_height: int):
+    """
+    使用 FFmpeg 精确缩放到目标分辨率 (用于超分后调整到精确尺寸)
+    """
+    # 确保尺寸为偶数 (h264 要求)
+    target_width = target_width + (target_width % 2)
+    target_height = target_height + (target_height % 2)
+
+    cmd = [
+        FFMPEG_BIN, "-y",
+        "-i", str(input_path),
+        "-vf", f"scale={target_width}:{target_height}:flags=lanczos",
+        "-c:v", "libx264", "-crf", "18", "-preset", "fast",
+        "-c:a", "copy",
+        str(output_path),
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"FFmpeg 缩放失败:\n{result.stderr[-500:]}")
+
+
 def upscale_video_realesrgan(
     video_path: str | Path,
     output_path: str | Path | None = None,
-    scale: int = UPSCALE_FACTOR,
+    scale: int | None = None,
     device: str | None = None,
+    target_width: int | None = None,
+    target_height: int | None = None,
 ) -> dict:
     """
     使用 Real-ESRGAN 对视频超分辨率放大
@@ -107,8 +149,10 @@ def upscale_video_realesrgan(
     Args:
         video_path: 输入视频路径
         output_path: 输出路径
-        scale: 放大倍数 (2 or 4)
+        scale: 放大倍数 (2 or 4), 与 target_width/target_height 二选一
         device: 推理设备, None 自动选择
+        target_width: 目标宽度 (与 scale 二选一, 自动选择最佳倍数)
+        target_height: 目标高度 (与 scale 二选一)
 
     Returns:
         dict: {"output": str, "frames_processed": int,
@@ -118,6 +162,24 @@ def upscale_video_realesrgan(
     if not video_path.is_file():
         raise FileNotFoundError(f"视频文件不存在: {video_path}")
 
+    # 获取源视频信息用于自动选择倍数
+    info = get_video_info(video_path)
+    src_width = info.get("width", 0)
+    src_height = info.get("height", 0)
+
+    # 判断模式: 目标分辨率 vs 倍数放大
+    need_rescale = False
+    if target_width and target_height:
+        # 目标分辨率模式: 自动选择最小倍数
+        scale = _auto_select_scale(src_width, src_height, target_width, target_height)
+        upscaled_w = src_width * scale
+        upscaled_h = src_height * scale
+        # 只有当超分结果与目标不一致时才需要后缩放
+        need_rescale = (upscaled_w != target_width or upscaled_h != target_height)
+        logger.info(f"目标分辨率: {target_width}x{target_height}, 自动选择 {scale}x 超分")
+    elif scale is None:
+        scale = UPSCALE_FACTOR
+
     if scale not in (2, 4):
         raise ValueError("scale 仅支持 2 或 4")
 
@@ -126,22 +188,28 @@ def upscale_video_realesrgan(
 
     OUTPUT_UPSCALE.mkdir(parents=True, exist_ok=True)
     if output_path is None:
-        output_path = OUTPUT_UPSCALE / generate_output_name(video_path.stem, ".mp4", f"_{scale}x")
+        if target_width and target_height:
+            tag = f"_{target_width}x{target_height}"
+        else:
+            tag = f"_{scale}x"
+        output_path = OUTPUT_UPSCALE / generate_output_name(video_path.stem, ".mp4", tag)
     output_path = Path(output_path)
+
+    # 如果需要后缩放, 先输出到临时路径
+    actual_output = output_path
+    if need_rescale:
+        ai_output = output_path.with_name(f".tmp_ai_{output_path.name}")
+    else:
+        ai_output = output_path
 
     logger.info(f"超分处理: {video_path.name} (scale={scale}x)")
 
     frames_processed = 0
-    original_size = ""
-    upscaled_size = ""
+    original_size = f"{src_width}x{src_height}"
 
-    with VideoFrameProcessor(video_path, output_path) as vp:
-        width, height = vp.width, vp.height
-        new_width = width * scale
-        new_height = height * scale
-        
-        original_size = f"{width}x{height}"
-        upscaled_size = f"{new_width}x{new_height}"
+    with VideoFrameProcessor(video_path, ai_output) as vp:
+        new_width = vp.width * scale
+        new_height = vp.height * scale
 
         # 初始化 writer
         vp.init_writer(width=new_width, height=new_height)
@@ -160,10 +228,19 @@ def upscale_video_realesrgan(
             
             frames_processed += 1
 
-    logger.info(f"✅ 超分完成: {output_path.name} ({original_size} → {upscaled_size})")
+    # 后缩放: AI 超分结果 → 精确目标分辨率
+    if need_rescale:
+        logger.info(f"精确缩放: {new_width}x{new_height} → {target_width}x{target_height}")
+        _ffmpeg_rescale(ai_output, actual_output, target_width, target_height)
+        ai_output.unlink(missing_ok=True)  # 清理临时文件
+        upscaled_size = f"{target_width}x{target_height}"
+    else:
+        upscaled_size = f"{new_width}x{new_height}"
+
+    logger.info(f"✅ 超分完成: {actual_output.name} ({original_size} → {upscaled_size})")
 
     return {
-        "output": str(output_path),
+        "output": str(actual_output),
         "frames_processed": frames_processed,
         "original_size": original_size,
         "upscaled_size": upscaled_size,

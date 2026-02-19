@@ -27,7 +27,9 @@ def _batch_realesrgan_worker(video_path: Path, **kwargs) -> dict:
 def batch_upscale_ffmpeg(
     input_dir: str | Path | None = None,
     videos: list[Path] | None = None,
-    scale: int = UPSCALE_FACTOR,
+    scale: int | None = UPSCALE_FACTOR,
+    width: int | None = None,
+    height: int | None = None,
     algorithm: str = "lanczos",
     crf: int = 18,
     **kwargs,
@@ -37,18 +39,28 @@ def batch_upscale_ffmpeg(
 
     Args:
         input_dir: 输入目录
-        scale: 放大倍数
+        scale: 放大倍数, 与 width/height 二选一
+        width: 目标宽度
+        height: 目标高度
         algorithm: 插值算法
         crf: 输出质量
     """
     ensure_dirs()
     if videos is None:
         videos = scan_videos(input_dir or INPUT_DIR)
+
+    if width and height:
+        desc = f"批量放大 (FFmpeg → {width}x{height})"
+    else:
+        desc = f"批量放大 (FFmpeg {scale}x)"
+
     results = batch_process(
         videos,
         _batch_ffmpeg_worker,
-        desc=f"批量放大 (FFmpeg {scale}x)",
+        desc=desc,
         scale=scale,
+        width=width,
+        height=height,
         algorithm=algorithm,
         crf=crf,
         **kwargs,
@@ -60,8 +72,10 @@ def batch_upscale_ffmpeg(
 def batch_upscale_realesrgan(
     input_dir: str | Path | None = None,
     videos: list[Path] | None = None,
-    scale: int = UPSCALE_FACTOR,
+    scale: int | None = None,
     device: str | None = None,
+    target_width: int | None = None,
+    target_height: int | None = None,
     **kwargs,
 ) -> list[dict]:
     """
@@ -69,18 +83,28 @@ def batch_upscale_realesrgan(
 
     Args:
         input_dir: 输入目录
-        scale: 放大倍数 (2 or 4)
+        scale: 放大倍数 (2 or 4), 与 target_width/target_height 二选一
         device: 推理设备
+        target_width: 目标宽度 (自动选择最佳 AI 倍数)
+        target_height: 目标高度
     """
     ensure_dirs()
     if videos is None:
         videos = scan_videos(input_dir or INPUT_DIR)
+
+    if target_width and target_height:
+        desc = f"批量超分 (Real-ESRGAN → {target_width}x{target_height})"
+    else:
+        desc = f"批量超分 (Real-ESRGAN {scale or UPSCALE_FACTOR}x)"
+
     results = batch_process(
         videos,
         _batch_realesrgan_worker,
-        desc=f"批量超分 (Real-ESRGAN {scale}x)",
+        desc=desc,
         scale=scale,
         device=device,
+        target_width=target_width,
+        target_height=target_height,
         **kwargs,
     )
     print_summary(results)
