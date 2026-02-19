@@ -15,6 +15,7 @@ RIFE 视频插帧模块
   python tools/interpolation/rife.py video.mp4 --target-fps 60
   python tools/interpolation/rife.py video.mp4 --multiplier 4
 """
+import sys
 import tempfile
 from pathlib import Path
 
