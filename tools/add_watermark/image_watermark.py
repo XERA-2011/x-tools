@@ -31,7 +31,7 @@ from config import (
     ADD_WATERMARK_MARGIN, ADD_WATERMARK_LOGO_SCALE,
     clamp,
 )
-from tools.common import logger, VideoFrameProcessor, generate_output_name
+from tools.common import logger, VideoFrameProcessor, generate_output_name, calc_overlay_position
 
 
 # ============================================================
@@ -61,26 +61,7 @@ def _prepare_logo(
     return logo
 
 
-def _calc_logo_position(
-    base_width: int,
-    base_height: int,
-    logo_width: int,
-    logo_height: int,
-    position: str | tuple[int, int],
-    margin: int,
-) -> tuple[int, int]:
-    """计算 Logo 位置"""
-    if isinstance(position, (list, tuple)):
-        return int(position[0]), int(position[1])
 
-    positions = {
-        "bottom-right": (base_width - logo_width - margin, base_height - logo_height - margin),
-        "bottom-left": (margin, base_height - logo_height - margin),
-        "top-right": (base_width - logo_width - margin, margin),
-        "top-left": (margin, margin),
-        "center": ((base_width - logo_width) // 2, (base_height - logo_height) // 2),
-    }
-    return positions.get(position, positions["bottom-right"])
 
 
 # ============================================================
@@ -105,7 +86,7 @@ def _render_logo_on_pil_image(
         logo = Image.merge("RGBA", (r, g, b, a))
 
     # 计算位置
-    x, y = _calc_logo_position(
+    x, y = calc_overlay_position(
         base.width, base.height,
         logo.width, logo.height,
         position, margin,
@@ -146,7 +127,7 @@ def _create_logo_layer(
     layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     
     # 4. 计算位置并粘贴
-    x, y = _calc_logo_position(
+    x, y = calc_overlay_position(
         width, height,
         logo.width, logo.height,
         position, margin,

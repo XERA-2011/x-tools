@@ -26,7 +26,7 @@ import numpy as np
 
 
 from config import OUTPUT_UPSCALE, UPSCALE_FACTOR, FFMPEG_BIN
-from tools.common import logger, VideoFrameProcessor, generate_output_name, get_video_info
+from tools.common import logger, VideoFrameProcessor, generate_output_name, get_video_info, orient_resolution
 
 
 # realesrgan-ncnn-vulkan 二进制路径 (项目 bin/ 目录)
@@ -143,11 +143,9 @@ def upscale_video_realesrgan(
     src_height = info.get("height", 0)
     fps = info.get("fps", 30)
 
-    # 竖屏视频: 自动翻转目标分辨率 (1920x1080 → 1080x1920)
-    if target_width and target_height and src_height > src_width:
-        if target_width > target_height:
-            target_width, target_height = target_height, target_width
-            logger.info(f"检测到竖屏视频, 自动调整目标分辨率为 {target_width}x{target_height}")
+    # 竖屏视频: 自动翻转目标分辨率
+    if target_width and target_height:
+        target_width, target_height = orient_resolution(src_width, src_height, target_width, target_height)
 
     # 判断模式: 目标分辨率 vs 倍数放大
     need_rescale = False

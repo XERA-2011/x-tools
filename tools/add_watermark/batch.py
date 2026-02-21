@@ -14,16 +14,6 @@ from tools.add_watermark.text_watermark import add_text_watermark
 from tools.add_watermark.image_watermark import add_image_watermark
 
 
-def _batch_text_worker(file_path: Path, **kwargs) -> dict:
-    """批量文字水印 worker"""
-    return add_text_watermark(file_path, **kwargs)
-
-
-def _batch_image_worker(file_path: Path, **kwargs) -> dict:
-    """批量 Logo 水印 worker"""
-    return add_image_watermark(file_path, **kwargs)
-
-
 def batch_add_text_watermark(
     input_dir: str | Path | None = None,
     files: list[Path] | None = None,
@@ -48,7 +38,7 @@ def batch_add_text_watermark(
 
     results = batch_process(
         files,
-        _batch_text_worker,
+        add_text_watermark,
         desc="批量添加文字水印",
         opacity=opacity,
         margin=margin,
@@ -84,7 +74,7 @@ def batch_add_image_watermark(
 
     results = batch_process(
         files,
-        _batch_image_worker,
+        add_image_watermark,
         desc="批量添加 Logo 水印",
         watermark_path=watermark_path,
         opacity=opacity,

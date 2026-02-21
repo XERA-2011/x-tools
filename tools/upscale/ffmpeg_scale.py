@@ -16,7 +16,7 @@ from pathlib import Path
 
 
 from config import FFMPEG_BIN, OUTPUT_UPSCALE, UPSCALE_FACTOR
-from tools.common import get_video_info, logger
+from tools.common import get_video_info, logger, orient_resolution
 
 
 def upscale_video_ffmpeg(
@@ -54,11 +54,9 @@ def upscale_video_ffmpeg(
 
     orig_w, orig_h = info["width"], info["height"]
 
-    # 竖屏视频: 自动翻转目标分辨率 (1920x1080 → 1080x1920)
-    if width and height and orig_h > orig_w:
-        if width > height:
-            width, height = height, width
-            logger.info(f"检测到竖屏视频, 自动调整目标分辨率为 {width}x{height}")
+    # 竖屏视频: 自动翻转目标分辨率
+    if width and height:
+        width, height = orient_resolution(orig_w, orig_h, width, height)
 
     # 计算目标尺寸
     if width and height:

@@ -13,17 +13,6 @@ from tools.common import scan_videos, batch_process, print_summary, logger
 from tools.upscale.ffmpeg_scale import upscale_video_ffmpeg
 
 
-def _batch_ffmpeg_worker(video_path: Path, **kwargs) -> dict:
-    """批量 FFmpeg 放大 worker"""
-    return upscale_video_ffmpeg(video_path, **kwargs)
-
-
-def _batch_realesrgan_worker(video_path: Path, **kwargs) -> dict:
-    """批量 Real-ESRGAN 超分 worker"""
-    from tools.upscale.realesrgan import upscale_video_realesrgan
-    return upscale_video_realesrgan(video_path, **kwargs)
-
-
 def batch_upscale_ffmpeg(
     input_dir: str | Path | None = None,
     videos: list[Path] | None = None,
@@ -56,7 +45,7 @@ def batch_upscale_ffmpeg(
 
     results = batch_process(
         videos,
-        _batch_ffmpeg_worker,
+        upscale_video_ffmpeg,
         desc=desc,
         scale=scale,
         width=width,
@@ -97,9 +86,10 @@ def batch_upscale_realesrgan(
     else:
         desc = f"批量超分 (Real-ESRGAN {scale or UPSCALE_FACTOR}x)"
 
+    from tools.upscale.realesrgan import upscale_video_realesrgan
     results = batch_process(
         videos,
-        _batch_realesrgan_worker,
+        upscale_video_realesrgan,
         desc=desc,
         scale=scale,
         device=device,

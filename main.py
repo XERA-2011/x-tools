@@ -20,7 +20,7 @@ from config import INPUT_DIR, UPSCALE_FACTOR, INTERPOLATION_TARGET_FPS
 from tools.common import scan_videos, scan_media, logger
 
 # 引入各个批量处理函数
-from tools.extract.batch import batch_extract_clips, batch_extract_keyframes
+from tools.extract.batch import batch_extract_clips, batch_extract_keyframes, batch_extract_interval, batch_extract_scenes
 from tools.watermark.batch import batch_remove_watermark_opencv, batch_remove_watermark_lama
 from tools.upscale.batch import batch_upscale_ffmpeg, batch_upscale_realesrgan
 from tools.interpolation.batch import batch_interpolate_ffmpeg, batch_interpolate_rife
@@ -146,21 +146,12 @@ def menu_extract(videos: list[Path]):
             interval = int(inquirer.number(message="间隔秒数:", default=5).execute())
             
         if inquirer.confirm(message=f"确认提取 {len(videos)} 个视频的关键帧?", default=True).execute():
-            from tools.common import batch_process, print_summary
-            from tools.extract.keyframe_extractor import (
-                extract_keyframes as _extract_kf,
-                extract_frames_interval as _extract_interval,
-                extract_frames_scene_change as _extract_scene,
-            )
-            
             if mode == "keyframes":
-                results = batch_process(videos, _extract_kf, desc="提取关键帧")
+                batch_extract_keyframes(videos=videos)
             elif mode == "interval":
-                results = batch_process(videos, _extract_interval, desc="按间隔提取帧", interval=float(interval))
+                batch_extract_interval(videos=videos, interval=float(interval))
             elif mode == "scene":
-                results = batch_process(videos, _extract_scene, desc="按场景提取帧", threshold=0.3)
-            
-            print_summary(results)
+                batch_extract_scenes(videos=videos)
 
 
 def menu_watermark(videos: list[Path]):

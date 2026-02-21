@@ -392,3 +392,117 @@ def merge_audio(original_video: Path, processed_video: Path, output_path: Path):
         logger.warning("音频混合失败, 仅输出视频")
         import shutil
         shutil.copy(processed_video, output_path)
+
+
+# ============================================================
+# 公共工具函数
+# ============================================================
+def parse_region(s: str) -> tuple[int, int, int, int]:
+    """
+    解析区域字符串 'x1,y1,x2,y2'
+
+    Args:
+        s: 格式为 "x1,y1,x2,y2" 的字符串
+
+    Returns:
+        (x1, y1, x2, y2) 整数元组
+
+    Raises:
+        ValueError: 格式不正确时
+    """
+    parts = [int(x.strip()) for x in s.split(",")]
+    if len(parts) != 4:
+        raise ValueError("区域格式: x1,y1,x2,y2")
+    return tuple(parts)
+
+
+def calc_overlay_position(
+    base_width: int,
+    base_height: int,
+    overlay_width: int,
+    overlay_height: int,
+    position: str | tuple[int, int],
+    margin: int,
+) -> tuple[int, int]:
+    """
+    根据位置名称计算叠加层坐标 (水印文字 / Logo 通用)
+
+    Args:
+        base_width, base_height: 底图尺寸
+        overlay_width, overlay_height: 叠加层尺寸
+        position: 位置 ("bottom-right" / "top-left" / ... / (x, y))
+        margin: 边距
+
+    Returns:
+        (x, y) 坐标
+    """
+    if isinstance(position, (list, tuple)):
+        return int(position[0]), int(position[1])
+
+    positions = {
+        "bottom-right": (base_width - overlay_width - margin, base_height - overlay_height - margin),
+        "bottom-left": (margin, base_height - overlay_height - margin),
+        "top-right": (base_width - overlay_width - margin, margin),
+        "top-left": (margin, margin),
+        "center": ((base_width - overlay_width) // 2, (base_height - overlay_height) // 2),
+    }
+    return positions.get(position, positions["bottom-right"])
+
+
+def orient_resolution(
+    src_width: int, src_height: int,
+    target_width: int, target_height: int,
+) -> tuple[int, int]:
+    """
+    竖屏视频自动翻转目标分辨率 (如 1920x1080 → 1080x1920)
+
+    Returns:
+        (target_width, target_height) 调整后的目标分辨率
+    """
+    if src_height > src_width and target_width > target_height:
+        logger.info(f"检测到竖屏视频, 自动调整目标分辨率为 {target_height}x{target_width}")
+        return target_height, target_width
+    return target_width, target_height
+
+
+def load_or_create_mask(
+    width: int,
+    height: int,
+    regions: list[tuple[int, int, int, int]] | None = None,
+    mask_path: str | Path | None = None,
+    feather: int = 3,
+    ref_width: int = 0,
+    ref_height: int = 0,
+) -> np.ndarray:
+    """
+    加载 mask 文件或根据区域列表创建 mask (公共逻辑)
+
+    必须指定 regions 或 mask_path 其中之一
+
+    Args:
+        width, height: 视频尺寸
+        regions: 水印区域列表 [(x1,y1,x2,y2), ...]
+        mask_path: mask 图片路径
+        feather: 边缘羽化
+        ref_width, ref_height: ROI 坐标的参考分辨率 (0=不缩放)
+
+    Returns:
+        二值 mask (uint8, 白色=水印区域)
+    """
+    from tools.watermark.opencv_inpaint import create_mask_from_regions, _scale_regions
+
+    # 按参考分辨率缩放坐标
+    if regions and ref_width > 0 and ref_height > 0:
+        regions = _scale_regions(regions, ref_width, ref_height, width, height)
+
+    if mask_path:
+        mask = cv2.imread(str(mask_path), cv2.IMREAD_GRAYSCALE)
+        if mask is None:
+            raise FileNotFoundError(f"无法读取 mask: {mask_path}")
+        if mask.shape[:2] != (height, width):
+            mask = cv2.resize(mask, (width, height))
+        _, mask = cv2.threshold(mask, 127, 255, cv2.THRESH_BINARY)
+    else:
+        mask = create_mask_from_regions(width, height, regions, feather)
+
+    return mask

@@ -9,19 +9,8 @@ from pathlib import Path
 
 
 from config import INPUT_DIR, ensure_dirs
-from tools.common import scan_videos, batch_process, print_summary, logger
+from tools.common import scan_videos, batch_process, print_summary, logger, parse_region
 from tools.watermark.opencv_inpaint import remove_watermark_opencv
-
-
-def _batch_opencv_worker(video_path: Path, **kwargs) -> dict:
-    """批量 OpenCV 去水印 worker"""
-    return remove_watermark_opencv(video_path, **kwargs)
-
-
-def _batch_lama_worker(video_path: Path, **kwargs) -> dict:
-    """批量 LaMA 去水印 worker"""
-    from tools.watermark.lama_remover import remove_watermark_lama
-    return remove_watermark_lama(video_path, **kwargs)
 
 
 def batch_remove_watermark_opencv(
@@ -52,7 +41,7 @@ def batch_remove_watermark_opencv(
         videos = scan_videos(input_dir or INPUT_DIR)
     results = batch_process(
         videos,
-        _batch_opencv_worker,
+        remove_watermark_opencv,
         desc="批量去水印 (OpenCV)",
         regions=regions,
         mask_path=mask_path,
@@ -91,9 +80,10 @@ def batch_remove_watermark_lama(
     ensure_dirs()
     if videos is None:
         videos = scan_videos(input_dir or INPUT_DIR)
+    from tools.watermark.lama_remover import remove_watermark_lama
     results = batch_process(
         videos,
-        _batch_lama_worker,
+        remove_watermark_lama,
         desc="批量去水印 (LaMA)",
         regions=regions,
         mask_path=mask_path,
@@ -112,11 +102,7 @@ def batch_remove_watermark_lama(
 if __name__ == "__main__":
     import argparse
 
-    def parse_region(s: str) -> tuple[int, int, int, int]:
-        parts = [int(x.strip()) for x in s.split(",")]
-        if len(parts) != 4:
-            raise argparse.ArgumentTypeError("区域格式: x1,y1,x2,y2")
-        return tuple(parts)
+
 
     parser = argparse.ArgumentParser(description="批量去水印")
     parser.add_argument("-i", "--input-dir", default=str(INPUT_DIR), help="输入视频目录")

@@ -18,7 +18,7 @@ import numpy as np
 
 
 from config import OUTPUT_WATERMARK, WATERMARK_INPAINT_RADIUS
-from tools.common import logger, VideoFrameProcessor, generate_output_name
+from tools.common import logger, VideoFrameProcessor, generate_output_name, load_or_create_mask, parse_region
 
 
 def create_mask_from_regions(
@@ -127,20 +127,10 @@ def remove_watermark_opencv(
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     cap.release()
 
-    # 按参考分辨率缩放坐标
-    if regions and ref_width > 0 and ref_height > 0:
-        regions = _scale_regions(regions, ref_width, ref_height, width, height)
-
-    # 创建或加载 mask
-    if mask_path:
-        mask = cv2.imread(str(mask_path), cv2.IMREAD_GRAYSCALE)
-        if mask is None:
-            raise FileNotFoundError(f"无法读取 mask: {mask_path}")
-        if mask.shape[:2] != (height, width):
-            mask = cv2.resize(mask, (width, height))
-        _, mask = cv2.threshold(mask, 127, 255, cv2.THRESH_BINARY)
-    else:
-        mask = create_mask_from_regions(width, height, regions, feather)
+    # 创建或加载 mask (使用公共函数)
+    mask = load_or_create_mask(
+        width, height, regions, mask_path, feather, ref_width, ref_height,
+    )
 
     # 检查 mask 是否有白色区域
     if cv2.countNonZero(mask) == 0:
@@ -168,13 +158,6 @@ def remove_watermark_opencv(
 # ============================================================
 if __name__ == "__main__":
     import argparse
-
-    def parse_region(s: str) -> tuple[int, int, int, int]:
-        """解析区域字符串 'x1,y1,x2,y2'"""
-        parts = [int(x.strip()) for x in s.split(",")]
-        if len(parts) != 4:
-            raise argparse.ArgumentTypeError("区域格式: x1,y1,x2,y2")
-        return tuple(parts)
 
     parser = argparse.ArgumentParser(description="OpenCV 去水印")
     parser.add_argument("input", help="输入视频路径")

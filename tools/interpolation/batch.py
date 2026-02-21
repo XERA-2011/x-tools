@@ -13,17 +13,6 @@ from tools.common import scan_videos, batch_process, print_summary, logger
 from tools.interpolation.ffmpeg_minterp import interpolate_video_ffmpeg
 
 
-def _batch_ffmpeg_worker(video_path: Path, **kwargs) -> dict:
-    """批量 FFmpeg 插帧 worker"""
-    return interpolate_video_ffmpeg(video_path, **kwargs)
-
-
-def _batch_rife_worker(video_path: Path, **kwargs) -> dict:
-    """批量 RIFE 插帧 worker"""
-    from tools.interpolation.rife import interpolate_video_rife
-    return interpolate_video_rife(video_path, **kwargs)
-
-
 def batch_interpolate_ffmpeg(
     input_dir: str | Path | None = None,
     videos: list[Path] | None = None,
@@ -43,7 +32,7 @@ def batch_interpolate_ffmpeg(
         videos = scan_videos(input_dir or INPUT_DIR)
     results = batch_process(
         videos,
-        _batch_ffmpeg_worker,
+        interpolate_video_ffmpeg,
         desc=f"批量插帧 (FFmpeg {target_fps} fps)",
         target_fps=target_fps,
         **kwargs,
@@ -69,9 +58,10 @@ def batch_interpolate_rife(
     ensure_dirs()
     if videos is None:
         videos = scan_videos(input_dir or INPUT_DIR)
+    from tools.interpolation.rife import interpolate_video_rife
     results = batch_process(
         videos,
-        _batch_rife_worker,
+        interpolate_video_rife,
         desc=f"批量插帧 (RIFE {multiplier}x)",
         multiplier=multiplier,
         **kwargs,

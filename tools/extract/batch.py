@@ -19,26 +19,6 @@ from tools.extract.keyframe_extractor import (
 )
 
 
-def _batch_clip_worker(video_path: Path, **kwargs) -> dict:
-    """批量截取 worker"""
-    return extract_clip(video_path, **kwargs)
-
-
-def _batch_keyframes_worker(video_path: Path, **kwargs) -> dict:
-    """批量关键帧 worker"""
-    return extract_keyframes(video_path, **kwargs)
-
-
-def _batch_interval_worker(video_path: Path, **kwargs) -> dict:
-    """批量间隔帧 worker"""
-    return extract_frames_interval(video_path, **kwargs)
-
-
-def _batch_scene_worker(video_path: Path, **kwargs) -> dict:
-    """批量场景帧 worker"""
-    return extract_frames_scene_change(video_path, **kwargs)
-
-
 def batch_extract_clips(
     input_dir: str | Path | None = None,
     videos: list[Path] | None = None,
@@ -63,7 +43,7 @@ def batch_extract_clips(
         videos = scan_videos(input_dir or INPUT_DIR)
     results = batch_process(
         videos,
-        _batch_clip_worker,
+        extract_clip,
         desc="批量截取片段",
         start=start, end=end, duration=duration,
         reencode=reencode,
@@ -84,7 +64,7 @@ def batch_extract_keyframes(
         videos = scan_videos(input_dir or INPUT_DIR)
     results = batch_process(
         videos,
-        _batch_keyframes_worker,
+        extract_keyframes,
         desc="批量提取关键帧",
         **kwargs,
     )
@@ -104,7 +84,7 @@ def batch_extract_interval(
         videos = scan_videos(input_dir or INPUT_DIR)
     results = batch_process(
         videos,
-        _batch_interval_worker,
+        extract_frames_interval,
         desc=f"批量提取帧 (间隔 {interval}s)",
         interval=interval,
         **kwargs,
@@ -125,7 +105,7 @@ def batch_extract_scenes(
         videos = scan_videos(input_dir or INPUT_DIR)
     results = batch_process(
         videos,
-        _batch_scene_worker,
+        extract_frames_scene_change,
         desc="批量提取场景帧",
         threshold=threshold,
         **kwargs,

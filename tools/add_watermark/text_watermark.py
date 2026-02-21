@@ -32,7 +32,7 @@ from config import (
     ADD_WATERMARK_COLOR, ADD_WATERMARK_POSITION, ADD_WATERMARK_MARGIN,
     clamp,
 )
-from tools.common import logger, VideoFrameProcessor, generate_output_name
+from tools.common import logger, VideoFrameProcessor, generate_output_name, calc_overlay_position
 
 
 # ============================================================
@@ -91,40 +91,7 @@ def _get_font(font_path: str | None = None, font_size: int = 36) -> ImageFont.Fr
     return ImageFont.load_default()
 
 
-# ============================================================
-# 位置计算
-# ============================================================
-def _calc_position(
-    base_width: int,
-    base_height: int,
-    text_width: int,
-    text_height: int,
-    position: str | tuple[int, int],
-    margin: int,
-) -> tuple[int, int]:
-    """
-    根据位置名称计算水印坐标
 
-    Args:
-        base_width, base_height: 底图尺寸
-        text_width, text_height: 水印文字尺寸
-        position: 位置 ("bottom-right" / "top-left" / ... / (x, y))
-        margin: 边距
-
-    Returns:
-        (x, y) 坐标
-    """
-    if isinstance(position, (list, tuple)):
-        return int(position[0]), int(position[1])
-
-    positions = {
-        "bottom-right": (base_width - text_width - margin, base_height - text_height - margin),
-        "bottom-left": (margin, base_height - text_height - margin),
-        "top-right": (base_width - text_width - margin, margin),
-        "top-left": (margin, margin),
-        "center": ((base_width - text_width) // 2, (base_height - text_height) // 2),
-    }
-    return positions.get(position, positions["bottom-right"])
 
 
 # ============================================================
@@ -156,7 +123,7 @@ def _render_text_on_pil_image(
     text_height = bbox[3] - bbox[1]
 
     # 计算位置
-    x, y = _calc_position(base.size[0], base.size[1], text_width, text_height, position, margin)
+    x, y = calc_overlay_position(base.size[0], base.size[1], text_width, text_height, position, margin)
 
     # 绘制带透明度的文字
     alpha = int(opacity * 255)
@@ -193,7 +160,7 @@ def _create_watermark_layer(
     text_width = bbox[2] - bbox[0]
     text_height = bbox[3] - bbox[1]
     
-    x, y = _calc_position(width, height, text_width, text_height, position, margin)
+    x, y = calc_overlay_position(width, height, text_width, text_height, position, margin)
     
     alpha_val = int(opacity * 255)
     draw.text((x, y), text, font=font, fill=(*color, alpha_val))

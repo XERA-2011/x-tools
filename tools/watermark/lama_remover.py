@@ -23,8 +23,8 @@ import numpy as np
 
 
 from config import OUTPUT_WATERMARK
-from tools.common import logger, VideoFrameProcessor, generate_output_name
-from tools.watermark.opencv_inpaint import create_mask_from_regions, _scale_regions
+from tools.common import logger, VideoFrameProcessor, generate_output_name, load_or_create_mask, parse_region
+from tools.watermark.opencv_inpaint import create_mask_from_regions
 
 
 def _check_torch():
@@ -144,22 +144,10 @@ def remove_watermark_lama(
         # 获取尺寸用于 mask 创建/padding 计算
         width, height = vp.width, vp.height
 
-        # 按参考分辨率缩放坐标
-        if regions and ref_width > 0 and ref_height > 0:
-            regions = _scale_regions(regions, ref_width, ref_height, width, height)
-
-        # 2. 准备 Mask
-        if mask_path:
-            mask_org = cv2.imread(str(mask_path), cv2.IMREAD_GRAYSCALE)
-            if mask_org is None:
-                raise FileNotFoundError(f"无法读取 mask: {mask_path}")
-            if mask_org.shape[:2] != (height, width):
-                mask_org = cv2.resize(mask_org, (width, height))
-        else:
-            mask_org = create_mask_from_regions(width, height, regions, feather)
-            
-        # 确保 mask 是二值化的
-        _, mask_thresh = cv2.threshold(mask_org, 127, 255, cv2.THRESH_BINARY)
+        # 准备 Mask (使用公共函数)
+        mask_thresh = load_or_create_mask(
+            width, height, regions, mask_path, feather, ref_width, ref_height,
+        )
         
         # 预处理 Mask 为 Tensor
         pad_h = (8 - height % 8) % 8
@@ -209,11 +197,7 @@ def remove_watermark_lama(
 if __name__ == "__main__":
     import argparse
 
-    def parse_region(s: str) -> tuple[int, int, int, int]:
-        parts = [int(x.strip()) for x in s.split(",")]
-        if len(parts) != 4:
-            raise argparse.ArgumentTypeError("区域格式: x1,y1,x2,y2")
-        return tuple(parts)
+
 
     parser = argparse.ArgumentParser(description="LaMA 深度学习去水印")
     parser.add_argument("input", help="输入视频路径")
