@@ -31,7 +31,6 @@ def batch_add_text_watermark(
         margin: 水印边距
         **kwargs: 传递给 add_text_watermark 的参数
     """
-    ensure_dirs()
     if files is None:
         videos, images = scan_media(input_dir or INPUT_DIR)
         files = images + videos
@@ -67,7 +66,6 @@ def batch_add_image_watermark(
         margin: 水印边距
         **kwargs: 传递给 add_image_watermark 的参数
     """
-    ensure_dirs()
     if files is None:
         videos, images = scan_media(input_dir or INPUT_DIR)
         files = images + videos
@@ -115,6 +113,7 @@ if __name__ == "__main__":
     img_p.add_argument("--margin", type=int, default=20)
 
     args = parser.parse_args()
+    ensure_dirs()
 
     if args.type == "text":
         batch_add_text_watermark(

@@ -148,9 +148,9 @@ def _create_watermark_layer(
     创建全尺寸的水印层 (用于视频合成优化)
     
     Returns:
-        (bgr_layer, alpha_channel)
-        bgr_layer: (H, W, 3) BGR
-        alpha_channel: (H, W, 1) float 0.0~1.0
+        (x, y, w, h, bgr_layer, alpha_channel)
+        bgr_layer: (h, w, 3) BGR
+        alpha_channel: (h, w, 1) float 0.0~1.0
     """
     # PIL 绘制 RGBA 层
     layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
@@ -168,20 +168,26 @@ def _create_watermark_layer(
     # 转换为 NumPy 数组
     layer_np = np.array(layer) # RGBA, (H, W, 4)
     
-    # 分离通道
-    # PIL RGB -> OpenCV BGR
-    # layer_np is R G B A
-    # OpenCV expects B G R
-    # alpha is A
+    # 找到有文字内容的区域 (ROI), 避免全图算力浪费
+    active_y, active_x = np.where(layer_np[:, :, 3] > 0)
+    if len(active_y) == 0:
+        return 0, 0, 1, 1, np.zeros((1, 1, 3), dtype=np.uint8), np.zeros((1, 1, 1), dtype=float)
+        
+    y_min, y_max = active_y.min(), active_y.max() + 1
+    x_min, x_max = active_x.min(), active_x.max() + 1
     
-    b, g, r = layer_np[:, :, 2], layer_np[:, :, 1], layer_np[:, :, 0]
-    a = layer_np[:, :, 3]
+    # 裁剪出 ROI
+    roi_np = layer_np[y_min:y_max, x_min:x_max]
+    
+    # 分离通道
+    b, g, r = roi_np[:, :, 2], roi_np[:, :, 1], roi_np[:, :, 0]
+    a = roi_np[:, :, 3]
     
     bgr = cv2.merge([b, g, r])
     alpha = a.astype(float) / 255.0
     alpha = np.expand_dims(alpha, axis=2) # (H, W, 1)
     
-    return bgr, alpha
+    return x_min, y_min, x_max - x_min, y_max - y_min, bgr, alpha
 
 
 # ============================================================
@@ -266,27 +272,24 @@ def add_text_watermark_video(
     frames_processed = 0
 
     with VideoFrameProcessor(video_path, output_path) as vp:
-        # 预渲染水印层 (性能优化)
-        overlay_bgr, overlay_alpha = _create_watermark_layer(
+        # 预渲染水印层 (性能优化: 提取 ROI)
+        x, y, w, h, overlay_bgr, overlay_alpha = _create_watermark_layer(
             vp.width, vp.height, text, font, color, opacity, position, margin
         )
         
-        # 优化: 只有当 alpha > 0 的地方才需要计算
-        # 如果水印很小, 全图 blend 浪费算力
-        # 但 NumPy 全图操作非常快 (vectorized), 相比 masking 复杂度可能更优
-        # 且 overlay_alpha 大部分是 0. 
-        # out = src * 1 + 0.
-        
-        # 注意: cv2 读出的 frame 是 uint8
-        # 转换 float 计算避免溢出
+        # 将 overlay 转为 float 放在循环外
+        overlay_bgr_float = overlay_bgr.astype(float)
         
         for frame in vp.frames(desc="添加文字水印"):
-            frame_float = frame.astype(float)
+            # 仅在 ROI 范围内进行 Alpha Blending
+            roi = frame[y:y+h, x:x+w].astype(float)
             
             # Blend: src * (1 - alpha) + overlay * alpha
-            out = frame_float * (1.0 - overlay_alpha) + overlay_bgr.astype(float) * overlay_alpha
+            out_roi = roi * (1.0 - overlay_alpha) + overlay_bgr_float * overlay_alpha
             
-            vp.write(out.astype(np.uint8))
+            # 放回原图
+            frame[y:y+h, x:x+w] = out_roi.astype(np.uint8)
+            vp.write(frame)
             frames_processed += 1
 
     logger.info(f"✅ 视频文字水印完成: {output_path.name} ({frames_processed} 帧)")

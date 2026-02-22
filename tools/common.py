@@ -343,29 +343,28 @@ class VideoFrameProcessor:
             self.writer.write(frame)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        if self.cap:
-            self.cap.release()
-        if self.writer:
-            self.writer.release()
-        
-        if exc_type is None:
-            # 正常结束, 合并音频
-            if self.frames_processed > 0 and self.enable_merge_audio:
-                merge_audio(self.input_path, self.temp_path, self.output_path)
-            elif self.frames_processed > 0 and not self.enable_merge_audio:
-                # 不合并音频, 直接移动/重命名临时文件到输出路径
-                import shutil
-                if self.output_path.exists():
-                     self.output_path.unlink()
-                shutil.move(str(self.temp_path), str(self.output_path))
+        try:
+            if self.cap:
+                self.cap.release()
+            if self.writer:
+                self.writer.release()
             
-            # 清理临时文件 (如果是 move 则已不存在, 但 unlink missing_ok=True 安全)
-            if self.temp_path and self.temp_path.exists():
-                self.temp_path.unlink()
-        else:
-            # 异常结束, 保留临时文件供调试? 或者清理
-            if self.temp_path and self.temp_path.exists():
-                self.temp_path.unlink()
+            if exc_type is None and self.frames_processed > 0:
+                # 正常结束
+                if self.enable_merge_audio:
+                    merge_audio(self.input_path, self.temp_path, self.output_path)
+                else:
+                    import shutil
+                    if self.output_path.exists():
+                         self.output_path.unlink()
+                    shutil.move(str(self.temp_path), str(self.output_path))
+        finally:
+            # 无论正常还是异常结束，强制清理临时文件
+            if getattr(self, "temp_path", None) and self.temp_path.exists():
+                try:
+                    self.temp_path.unlink()
+                except Exception as e:
+                    logger.warning(f"清理临时文件失败: {self.temp_path} - {e}")
 
 
 # ============================================================
@@ -379,7 +378,7 @@ def merge_audio(original_video: Path, processed_video: Path, output_path: Path):
         FFMPEG_BIN, "-y",
         "-i", str(processed_video),    # 修复后的视频 (无音频)
         "-i", str(original_video),     # 原视频 (取音频)
-        "-c:v", "libx264", "-crf", "18", "-preset", "fast",
+        "-c:v", "copy",               # 直接复制流免去二次压制
         "-c:a", "aac", "-b:a", "192k",
         "-map", "0:v:0",              # 用处理后的视频流
         "-map", "1:a:0?",             # 用原视频的音频流 (可选, 原视频可能无音频)

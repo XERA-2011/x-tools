@@ -93,6 +93,7 @@ if __name__ == "__main__":
     rife_fps_group.add_argument("-t", "--target-fps", type=float, help="目标帧率")
 
     args = parser.parse_args()
+    ensure_dirs()
 
     if args.engine == "ffmpeg":
         batch_interpolate_ffmpeg(input_dir=args.input_dir, target_fps=args.target_fps, mode=args.mode)

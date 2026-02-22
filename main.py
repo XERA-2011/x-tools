@@ -16,7 +16,7 @@ from InquirerPy import inquirer
 from InquirerPy.base.control import Choice
 from InquirerPy.separator import Separator
 
-from config import INPUT_DIR, UPSCALE_FACTOR, INTERPOLATION_TARGET_FPS
+from config import INPUT_DIR, UPSCALE_FACTOR, INTERPOLATION_TARGET_FPS, ensure_dirs
 from tools.common import scan_videos, scan_media, logger
 
 # 引入各个批量处理函数
@@ -115,8 +115,13 @@ def menu_extract(videos: list[Path]):
         choices=[
             Choice("clip", "✂️  视频片段截取"),
             Choice("keyframe", "🖼️  关键帧提取"),
+            Separator(),
+            Choice("back", "⬅️  返回上一级"),
         ],
     ).execute()
+
+    if action == "back":
+        return
 
     if action == "clip":
         start = inquirer.text(message="开始时间 (秒 or 00:00:00):", default="0").execute()
@@ -161,8 +166,13 @@ def menu_watermark(videos: list[Path]):
         choices=[
             Choice("opencv", "🔧 OpenCV (传统算法, 快速, 适合简单水印)"),
             Choice("lama", "🧠 LaMA (深度学习, 慢, 效果好, 适合复杂水印)"),
+            Separator(),
+            Choice("back", "⬅️  返回上一级"),
         ],
     ).execute()
+
+    if engine == "back":
+        return
 
     # 参考分辨率 (仅在鼠标框选时记录)
     ref_width = 0
@@ -236,8 +246,13 @@ def menu_upscale(videos: list[Path]):
         choices=[
             Choice("ffmpeg", "⚙️  FFmpeg (传统插值, 无需GPU)"),
             Choice("realesrgan", "🚀 Real-ESRGAN (AI超分, 需GPU/MPS)"),
+            Separator(),
+            Choice("back", "⬅️  返回上一级"),
         ],
     ).execute()
+
+    if engine == "back":
+        return
 
     # 选择放大方式
     upscale_mode = inquirer.select(
@@ -299,8 +314,13 @@ def menu_interpolate(videos: list[Path]):
         choices=[
             Choice("ffmpeg", "⚙️  FFmpeg (运动补偿, 无需GPU)"),
             Choice("rife", "🌊 RIFE (AI插帧, 需GPU/MPS)"),
+            Separator(),
+            Choice("back", "⬅️  返回上一级"),
         ],
     ).execute()
+    
+    if engine == "back":
+        return
     
     target_fps = 60
     multiplier = 2
@@ -328,8 +348,13 @@ def menu_add_watermark(media: list[Path]):
         choices=[
             Choice("text", "📝 文字水印 (支持中文)"),
             Choice("image", "🖼️  图片水印 (Logo)"),
+            Separator(),
+            Choice("back", "⬅️  返回上一级"),
         ],
     ).execute()
+
+    if wm_type == "back":
+        return
 
     if wm_type == "text":
         text = inquirer.text(message="水印文字:").execute()
@@ -410,6 +435,7 @@ def _check_ffmpeg():
 
 def main():
     _check_ffmpeg()
+    ensure_dirs()
 
     print(r"""
  __   __        ______            _     

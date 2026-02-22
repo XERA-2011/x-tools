@@ -36,7 +36,6 @@ def batch_remove_watermark_opencv(
         inpaint_radius: 修复半径
         feather: 边缘羽化
     """
-    ensure_dirs()
     if videos is None:
         videos = scan_videos(input_dir or INPUT_DIR)
     results = batch_process(
@@ -77,7 +76,6 @@ def batch_remove_watermark_lama(
         ref_height: ROI 坐标的参考分辨率高度 (0=不缩放)
         feather: 边缘羽化
     """
-    ensure_dirs()
     if videos is None:
         videos = scan_videos(input_dir or INPUT_DIR)
     from tools.watermark.lama_remover import remove_watermark_lama
@@ -124,6 +122,7 @@ if __name__ == "__main__":
     lama_p.add_argument("--feather", type=int, default=5)
 
     args = parser.parse_args()
+    ensure_dirs()
 
     if not args.region and not args.mask:
         parser.error("必须指定 --region 或 --mask")

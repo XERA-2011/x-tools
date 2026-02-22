@@ -34,7 +34,6 @@ def batch_upscale_ffmpeg(
         algorithm: 插值算法
         crf: 输出质量
     """
-    ensure_dirs()
     if videos is None:
         videos = scan_videos(input_dir or INPUT_DIR)
 
@@ -77,7 +76,6 @@ def batch_upscale_realesrgan(
         target_width: 目标宽度 (自动选择最佳 AI 倍数)
         target_height: 目标高度
     """
-    ensure_dirs()
     if videos is None:
         videos = scan_videos(input_dir or INPUT_DIR)
 
@@ -124,6 +122,7 @@ if __name__ == "__main__":
     esrgan_p.add_argument("--device", choices=["mps", "cpu", "cuda"], help="推理设备")
 
     args = parser.parse_args()
+    ensure_dirs()
 
     if args.engine == "ffmpeg":
         batch_upscale_ffmpeg(input_dir=args.input_dir, scale=args.scale, algorithm=args.algorithm, crf=args.crf)

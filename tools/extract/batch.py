@@ -38,7 +38,6 @@ def batch_extract_clips(
         duration: 持续时长
         reencode: 是否重新编码
     """
-    ensure_dirs()
     if videos is None:
         videos = scan_videos(input_dir or INPUT_DIR)
     results = batch_process(
@@ -59,7 +58,6 @@ def batch_extract_keyframes(
     **kwargs,
 ) -> list[dict]:
     """批量提取关键帧"""
-    ensure_dirs()
     if videos is None:
         videos = scan_videos(input_dir or INPUT_DIR)
     results = batch_process(
@@ -79,7 +77,6 @@ def batch_extract_interval(
     **kwargs,
 ) -> list[dict]:
     """批量按间隔提取帧"""
-    ensure_dirs()
     if videos is None:
         videos = scan_videos(input_dir or INPUT_DIR)
     results = batch_process(
@@ -100,7 +97,6 @@ def batch_extract_scenes(
     **kwargs,
 ) -> list[dict]:
     """批量按场景切换提取帧"""
-    ensure_dirs()
     if videos is None:
         videos = scan_videos(input_dir or INPUT_DIR)
     results = batch_process(
@@ -144,6 +140,7 @@ if __name__ == "__main__":
     scene_p.add_argument("--threshold", type=float, default=0.3, help="阈值 (0-1)")
 
     args = parser.parse_args()
+    ensure_dirs()
 
     if args.mode == "clip":
         batch_extract_clips(input_dir=args.input_dir, start=args.start, end=args.end, duration=args.duration, reencode=args.reencode)
