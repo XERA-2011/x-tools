@@ -2,7 +2,6 @@
 x-tools 交互式终端入口 (TUI)
 
 功能:
-  - 引导用户选择处理模块 (提取/去水印/超分/插帧)
   - 引导用户配置参数
   - 扫描 input/ 目录或选择单文件
   - 调用 Rich 显示进度
@@ -19,8 +18,7 @@ from InquirerPy.separator import Separator
 from config import INPUT_DIR, UPSCALE_FACTOR, INTERPOLATION_TARGET_FPS, ensure_dirs
 from tools.common import scan_videos, scan_media, logger
 
-# 引入各个批量处理函数
-from tools.extract.batch import batch_extract_clips, batch_extract_keyframes, batch_extract_interval, batch_extract_scenes
+# 引入各个批量处理去水、超分等函数
 from tools.watermark.batch import batch_remove_watermark_opencv, batch_remove_watermark_lama
 from tools.upscale.batch import batch_upscale_ffmpeg, batch_upscale_realesrgan
 from tools.interpolation.batch import batch_interpolate_ffmpeg, batch_interpolate_rife
@@ -108,55 +106,7 @@ def get_input_media() -> list[Path]:
     return []
 
 
-def menu_extract(videos: list[Path]):
-    """内容提取菜单"""
-    action = inquirer.select(
-        message="选择提取模式:",
-        choices=[
-            Choice("clip", "✂️  视频片段截取"),
-            Choice("keyframe", "🖼️  关键帧提取"),
-            Separator(),
-            Choice("back", "⬅️  返回上一级"),
-        ],
-    ).execute()
 
-    if action == "back":
-        return
-
-    if action == "clip":
-        start = inquirer.text(message="开始时间 (秒 or 00:00:00):", default="0").execute()
-        duration = inquirer.text(message="持续时长 (秒):", default="10").execute()
-        
-        if inquirer.confirm(message=f"是否查看将要处理的 {len(videos)} 个文件列表?", default=False).execute():
-            print("\n文件列表:")
-            for v in videos:
-                print(f"  - {v.name}")
-            print()
-
-        if inquirer.confirm(message=f"确认截取 {len(videos)} 个视频?", default=True).execute():
-            batch_extract_clips(videos=videos, start=start, duration=duration)
-
-    elif action == "keyframe":
-        mode = inquirer.select(
-            message="关键帧提取规则:",
-            choices=[
-                Choice("keyframes", "仅 I-帧 (关键帧)"),
-                Choice("interval", "按时间间隔"),
-                Choice("scene", "按场景变化"),
-            ],
-        ).execute()
-        
-        interval = 5
-        if mode == "interval":
-            interval = int(inquirer.number(message="间隔秒数:", default=5).execute())
-            
-        if inquirer.confirm(message=f"确认提取 {len(videos)} 个视频的关键帧?", default=True).execute():
-            if mode == "keyframes":
-                batch_extract_keyframes(videos=videos)
-            elif mode == "interval":
-                batch_extract_interval(videos=videos, interval=float(interval))
-            elif mode == "scene":
-                batch_extract_scenes(videos=videos)
 
 
 def menu_watermark(videos: list[Path]):
@@ -451,7 +401,6 @@ def main():
         module = inquirer.select(
             message="选择功能模块:",
             choices=[
-                Choice("extract", "✂️  内容截取 (Extract)"),
                 Choice("watermark", "💧 去水印 (Watermark)"),
                 Choice("add_watermark", "🏷️  增加水印 (Add Watermark)"),
                 Choice("upscale", "🆙 高清重置 (Upscale)"),
@@ -479,10 +428,7 @@ def main():
                 print("❌ 未找到视频文件")
                 continue
 
-            # 进入子菜单
-            if module == "extract":
-                menu_extract(videos)
-            elif module == "watermark":
+            if module == "watermark":
                 menu_watermark(videos)
             elif module == "upscale":
                 menu_upscale(videos)

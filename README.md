@@ -4,7 +4,7 @@
 
 推荐使用 mac m4 以上处理器
 
-**核心功能**: 去水印 (OpenCV/LaMA 深度学习)、高清重置 (Real-ESRGAN/FFmpeg)、关键帧提取、内容截取、帧数补充 (RIFE)。
+**核心功能**: 去水印 (OpenCV/LaMA 深度学习)、高清重置 (Real-ESRGAN/FFmpeg)、帧数补充 (RIFE)。
 
 ## � 快速开始 (30秒上手)
 
@@ -32,7 +32,6 @@ python main.py
 - 💧 **去水印**: 支持鼠标框选区域 (OpenCV 快速修复 / LaMA 深度学习无痕修复)。
 - 🏷️ **加水印**: 文字水印 (支持中文) / 图片水印 (Logo), 支持图片和视频。
 - 🆙 **高清重置**: 批量 2x/4x 放大 (使用 Real-ESRGAN AI 或 FFmpeg)。
-- ✂️ **内容提取**: 批量截取片段、提取关键帧。
 
 ---
 
@@ -79,16 +78,7 @@ python tools/upscale/realesrgan.py video.mp4 -s 2
 python tools/upscale/ffmpeg_scale.py video.mp4 -s 2
 ```
 
-### 4. ✂️ 内容截取与提取
-```bash
-# 截取前 30 秒
-python tools/extract/clip_extractor.py video.mp4 -s 0 -d 30
-
-# 提取所有关键帧 (I-Frame)
-python tools/extract/keyframe_extractor.py video.mp4 --keyframes
-```
-
-### 5. ⏯️ 帧数补充 (插帧)
+### 4. ⏯️ 帧数补充 (插帧)
 ```bash
 # RIFE AI 插帧 (2倍帧率)
 python tools/interpolation/rife.py video.mp4 -m 2
@@ -107,7 +97,6 @@ x-tools/
     ├── watermark/                # 去水印模块 (OpenCV, LaMA)
     ├── add_watermark/            # 加水印模块 (文字, Logo)
     ├── upscale/                  # 超分模块 (Real-ESRGAN, FFmpeg)
-    ├── extract/                  # 提取模块 (截取, 关键帧)
     └── interpolation/            # 插帧模块 (RIFE, FFmpeg)
 ```
 
