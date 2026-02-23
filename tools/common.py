@@ -372,25 +372,40 @@ class VideoFrameProcessor:
 # ============================================================
 def merge_audio(original_video: Path, processed_video: Path, output_path: Path):
     """
-    将原视频的音频合并到处理后的视频中
+    将原视频的音频合并到处理后的视频中。
+    OpenCV VideoWriter 使用 mp4v (MPEG-4 Part 2) 编码临时文件，
+    必须通过 FFmpeg 重编码为 H.264 (libx264)，否则输出的 MP4 在
+    微信视频号等平台导入时会因编解码器不兼容而失败。
     """
     cmd = [
         FFMPEG_BIN, "-y",
-        "-i", str(processed_video),    # 修复后的视频 (无音频)
+        "-i", str(processed_video),    # 修复后的视频 (无音频, mp4v)
         "-i", str(original_video),     # 原视频 (取音频)
-        "-c:v", "copy",               # 直接复制流免去二次压制
+        "-c:v", "libx264", "-crf", "18", "-preset", "fast",  # 重编码为 H.264，确保兼容性
         "-c:a", "aac", "-b:a", "192k",
         "-map", "0:v:0",              # 用处理后的视频流
         "-map", "1:a:0?",             # 用原视频的音频流 (可选, 原视频可能无音频)
         "-shortest",
+        "-movflags", "+faststart",     # 优化 MP4 流式播放 (moov atom 前置)
         str(output_path),
     ]
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
-        # 如果混合失败, 直接复制
-        logger.warning("音频混合失败, 仅输出视频")
-        import shutil
-        shutil.copy(processed_video, output_path)
+        # 音频混合失败 (原视频无音频流等), 降级为仅输出 H.264 视频
+        logger.warning("音频混合失败, 降级为纯视频输出")
+        cmd_fallback = [
+            FFMPEG_BIN, "-y",
+            "-i", str(processed_video),
+            "-c:v", "libx264", "-crf", "18", "-preset", "fast",
+            "-an",
+            "-movflags", "+faststart",
+            str(output_path),
+        ]
+        result2 = subprocess.run(cmd_fallback, capture_output=True, text=True)
+        if result2.returncode != 0:
+            logger.error(f"FFmpeg 重编码失败: {result2.stderr}")
+            import shutil
+            shutil.copy(processed_video, output_path)
 
 
 # ============================================================
