@@ -14,7 +14,8 @@
 ```bash
 # 创建并激活环境
 python3 -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate        # macOS / Linux
+# .venv\Scripts\activate         # Windows
 
 # 安装依赖
 pip install -r requirements.txt
