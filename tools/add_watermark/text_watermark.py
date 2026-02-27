@@ -19,6 +19,7 @@
 """
 import platform
 import sys
+import unicodedata
 from pathlib import Path
 
 import cv2
@@ -34,13 +35,48 @@ from config import (
 )
 from tools.common import logger, VideoFrameProcessor, generate_output_name, calc_overlay_position
 
+# 项目内置字体目录 (放在 bin/fonts/ 下，随项目分发)
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+_BUNDLED_FONTS_DIR = _PROJECT_ROOT / "bin" / "fonts"
+
 
 # ============================================================
 # 字体查找
 # ============================================================
+
+def _has_smp_chars(text: str) -> bool:
+    """
+    检测文本是否含有辅助多文种平面字符 (SMP, U+10000+)。
+    𝕏𝔼ℝ𝔸 等 Unicode 数学字母数字符号均属于此范围，
+    大多数 CJK 字体不包含这些字形。
+    """
+    return any(ord(c) > 0xFFFF for c in text)
+
+
+def _find_bundled_unicode_font() -> str:
+    """
+    查找项目内置的 Unicode 数学字体 (bin/fonts/)。
+    优先级: STIXTwoMath > Quivira > 其他 otf/ttf
+    """
+    preferred = [
+        _BUNDLED_FONTS_DIR / "STIXTwoMath-Regular.otf",
+        _BUNDLED_FONTS_DIR / "Quivira.ttf",
+    ]
+    for p in preferred:
+        if p.exists():
+            return str(p)
+    # 扫描 bin/fonts/ 内任何可用字体
+    if _BUNDLED_FONTS_DIR.exists():
+        for p in _BUNDLED_FONTS_DIR.glob("*.otf"):
+            return str(p)
+        for p in _BUNDLED_FONTS_DIR.glob("*.ttf"):
+            return str(p)
+    return ""
+
+
 def _find_cjk_font() -> str:
     """
-    查找系统中可用的中文字体路径
+    查找系统中可用的中文字体路径。
 
     Returns:
         str: 字体文件路径
@@ -78,16 +114,37 @@ def _find_cjk_font() -> str:
     return ""
 
 
-def _get_font(font_path: str | None = None, font_size: int = 36) -> ImageFont.FreeTypeFont:
-    """获取字体对象"""
+def _get_font(font_path: str | None = None, font_size: int = 36, text: str = "") -> ImageFont.FreeTypeFont:
+    """
+    获取字体对象。
+
+    选择策略:
+      1. 用户显式指定 font_path → 直接使用
+      2. 文本含 SMP/数学字符 → 优先使用项目内置 Unicode 数学字体
+      3. 否则 → 使用系统 CJK 字体 (支持中文)
+      4. 最终回退 → Pillow 默认字体
+    """
     if font_path and Path(font_path).exists():
         return ImageFont.truetype(font_path, font_size)
 
+    # 含数学/特殊 Unicode 字符 → 使用项目内置字体
+    if text and _has_smp_chars(text):
+        bundled = _find_bundled_unicode_font()
+        if bundled:
+            logger.debug(f"检测到 SMP 字符, 使用内置 Unicode 字体: {Path(bundled).name}")
+            return ImageFont.truetype(bundled, font_size)
+        else:
+            logger.warning(
+                "文本含 Unicode 数学/特殊字符 (如 𝕏𝔼ℝ𝔸), 但未找到项目内置字体。\n"
+                f"请将字体文件放入: {_BUNDLED_FONTS_DIR}\n"
+                "推荐字体: STIXTwoMath-Regular.otf (https://github.com/stipub/stixfonts)"
+            )
+
+    # 普通文本 → CJK 字体
     cjk_font = _find_cjk_font()
     if cjk_font:
         return ImageFont.truetype(cjk_font, font_size)
 
-    # 最终回退
     return ImageFont.load_default()
 
 
@@ -217,7 +274,7 @@ def add_text_watermark_image(
     opacity = clamp(opacity, 0.0, 1.0, "opacity")
     font_size = max(1, int(font_size))
 
-    font = _get_font(font_path, font_size)
+    font = _get_font(font_path, font_size, text=text)
 
     result_image = _render_text_on_pil_image(
         pil_image, text, font, color, opacity, position, margin,
@@ -259,7 +316,7 @@ def add_text_watermark_video(
     if not video_path.is_file():
         raise FileNotFoundError(f"视频文件不存在: {video_path}")
 
-    font = _get_font(font_path, font_size)
+    font = _get_font(font_path, font_size, text=text)
     opacity = clamp(opacity, 0.0, 1.0, "opacity")
     font_size = max(1, int(font_size))
 

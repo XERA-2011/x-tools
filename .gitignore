@@ -29,5 +29,9 @@ Thumbs.db
 .env
 .env.local
 
-# Binaries
-bin/
+# Binaries (models, executables — excluded from git)
+# Allow the bin/ dir itself so we can track bin/fonts/
+!bin/
+bin/*
+!bin/fonts/
+!bin/fonts/**
