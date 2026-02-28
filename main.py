@@ -25,8 +25,8 @@ from tools.interpolation.batch import batch_interpolate_ffmpeg, batch_interpolat
 from tools.add_watermark.batch import batch_add_text_watermark, batch_add_image_watermark
 
 
-def get_input_videos() -> list[Path]:
-    """获取待处理视频列表"""
+def get_input_videos() -> list[Path] | None:
+    """获取待处理视频列表, 返回 None 表示用户选择返回"""
     # 选项: 扫描 input/ 目录 或 输入路径
     mode = inquirer.select(
         message="选择输入源:",
@@ -34,8 +34,13 @@ def get_input_videos() -> list[Path]:
             Choice("scan", f"📂 扫描 input/ 目录"),
             Choice("path", "📄 指定单个文件路径"),
             Choice("manual_dir", "📁 指定其他目录"),
+            Separator(),
+            Choice("back", "⬅️  返回上一级"),
         ],
     ).execute()
+
+    if mode == "back":
+        return None
 
     if mode == "scan":
         recursive = inquirer.confirm(message="是否递归扫描子目录?", default=False).execute()
@@ -65,16 +70,21 @@ def get_input_videos() -> list[Path]:
     return []
 
 
-def get_input_media() -> list[Path]:
-    """获取待处理媒体文件列表 (视频 + 图片)"""
+def get_input_media() -> list[Path] | None:
+    """获取待处理媒体文件列表 (视频 + 图片), 返回 None 表示用户选择返回"""
     mode = inquirer.select(
         message="选择输入源:",
         choices=[
             Choice("scan", f"📂 扫描 input/ 目录"),
             Choice("path", "📄 指定单个文件路径"),
             Choice("manual_dir", "📁 指定其他目录"),
+            Separator(),
+            Choice("back", "⬅️  返回上一级"),
         ],
     ).execute()
+
+    if mode == "back":
+        return None
 
     if mode == "scan":
         recursive = inquirer.confirm(message="是否递归扫描子目录?", default=False).execute()
@@ -418,12 +428,16 @@ def main():
         # 获取输入
         if module == "add_watermark":
             media = get_input_media()
+            if media is None:
+                continue  # 用户选择返回上一级
             if not media:
                 print("❌ 未找到媒体文件")
                 continue
             menu_add_watermark(media)
         else:
             videos = get_input_videos()
+            if videos is None:
+                continue  # 用户选择返回上一级
             if not videos:
                 print("❌ 未找到视频文件")
                 continue
