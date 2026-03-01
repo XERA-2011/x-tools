@@ -109,7 +109,7 @@ def upscale_video_ffmpeg(
     actual_target = f"{target_w}x{target_h}" if target_w > 0 and target_h > 0 else f"scale={scale}x"
     logger.info(f"FFmpeg 放大: {video_path.name} ({orig_w}x{orig_h} → {actual_target}, {algorithm})")
 
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace')
     if result.returncode != 0:
         raise RuntimeError(f"FFmpeg 错误:\n{result.stderr[-500:]}")
 

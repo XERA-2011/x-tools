@@ -68,7 +68,7 @@ def get_video_info(video_path: str | Path) -> dict:
         video_path,
     ]
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', check=True)
         data = json.loads(result.stdout)
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
         logger.error(f"无法读取视频信息: {video_path} — {e}")
@@ -389,7 +389,7 @@ def merge_audio(original_video: Path, processed_video: Path, output_path: Path):
         "-movflags", "+faststart",     # 优化 MP4 流式播放 (moov atom 前置)
         str(output_path),
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace')
     if result.returncode != 0:
         # 音频混合失败 (原视频无音频流等), 降级为仅输出 H.264 视频
         logger.warning("音频混合失败, 降级为纯视频输出")
@@ -401,7 +401,7 @@ def merge_audio(original_video: Path, processed_video: Path, output_path: Path):
             "-movflags", "+faststart",
             str(output_path),
         ]
-        result2 = subprocess.run(cmd_fallback, capture_output=True, text=True)
+        result2 = subprocess.run(cmd_fallback, capture_output=True, text=True, encoding='utf-8', errors='replace')
         if result2.returncode != 0:
             logger.error(f"FFmpeg 重编码失败: {result2.stderr}")
             import shutil

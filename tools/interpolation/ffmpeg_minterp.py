@@ -92,7 +92,7 @@ def interpolate_video_ffmpeg(
         f"mode={mode})"
     )
 
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace')
     if result.returncode != 0:
         raise RuntimeError(f"FFmpeg 错误:\n{result.stderr[-500:]}")
 

@@ -6,20 +6,37 @@
 
 ## � 快速开始 (30秒上手)
 
-**1. 环境配置**
-需要 Python 3.10+ 和 FFmpeg。
+**1. 安装 FFmpeg**
 
+| 平台 | 命令 |
+|------|------|
+| macOS | `brew install ffmpeg` |
+| Ubuntu | `sudo apt install ffmpeg` |
+| Windows | `winget install Gyan.FFmpeg` (安装后需**重启终端**) |
+
+**2. 环境配置**
+
+**macOS / Linux:**
 ```bash
-# 创建并激活环境
 python3 -m venv .venv
-source .venv/bin/activate        # macOS / Linux
-# .venv\Scripts\activate         # Windows
-
-# 安装依赖
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-**2. 运行交互式终端**
+**Windows (PowerShell):**
+```powershell
+python -m venv .venv
+& .\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
+
+> ⚠️ **Windows 注意**: 请使用 `python` 而非 `python3`，激活虚拟环境时必须使用 `& .\.venv\Scripts\Activate.ps1` 语法。
+> 若安装 FFmpeg 后仍提示未检测到，请重启终端或执行:
+> ```powershell
+> $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+> ```
+
+**3. 运行交互式终端**
 无需记忆命令，通过箭头键选择功能：
 
 ```bash

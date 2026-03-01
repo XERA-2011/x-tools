@@ -76,7 +76,7 @@ def _ffmpeg_rescale(input_path: Path, output_path: Path, target_width: int, targ
         "-c:a", "copy",
         str(output_path),
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace')
     if result.returncode != 0:
         raise RuntimeError(f"FFmpeg 缩放失败:\n{result.stderr[-500:]}")
 
@@ -94,7 +94,7 @@ def _run_realesrgan_on_frames(input_dir: Path, output_dir: Path, scale: int = 2,
         "-m", str(REALESRGAN_MODELS),
         "-f", "png",
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace')
     if result.returncode != 0:
         raise RuntimeError(f"realesrgan-ncnn-vulkan 执行失败:\n{result.stderr[-500:]}")
 
@@ -197,7 +197,7 @@ def upscale_video_realesrgan(
             "-qmin", "1",
             str(frames_dir / "frame_%08d.png"),
         ]
-        result = subprocess.run(extract_cmd, capture_output=True, text=True)
+        result = subprocess.run(extract_cmd, capture_output=True, text=True, encoding='utf-8', errors='replace')
         if result.returncode != 0:
             raise RuntimeError(f"帧提取失败:\n{result.stderr[-500:]}")
 
@@ -226,7 +226,7 @@ def upscale_video_realesrgan(
             "-pix_fmt", "yuv420p",
             str(ai_output),
         ]
-        result = subprocess.run(reassemble_cmd, capture_output=True, text=True)
+        result = subprocess.run(reassemble_cmd, capture_output=True, text=True, encoding='utf-8', errors='replace')
         if result.returncode != 0:
             raise RuntimeError(f"视频重组失败:\n{result.stderr[-500:]}")
 

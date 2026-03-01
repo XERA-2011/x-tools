@@ -160,10 +160,27 @@ def menu_watermark(videos: list[Path]):
                     print("❌ 无法读取视频帧，请手动输入")
                     ref_width = ref_height = 0
                     continue
-                    
+
+                # 缩放帧以适配屏幕 (高分辨率/高DPI 屏幕)
+                max_w, max_h = 1280, 720
+                fh, fw = frame.shape[:2]
+                scale_ratio = min(max_w / fw, max_h / fh, 1.0)
+                if scale_ratio < 1.0:
+                    display = cv2.resize(frame, (int(fw * scale_ratio), int(fh * scale_ratio)))
+                else:
+                    display = frame
+
                 print("\n📸 请在弹出的窗口中框选水印区域，按 Enter 或 Space 确认...")
-                x, y, w, h = cv2.selectROI("Select Watermark", frame, showCrosshair=True)
+                cv2.namedWindow("Select Watermark", cv2.WINDOW_NORMAL)
+                x, y, w, h = cv2.selectROI("Select Watermark", display, showCrosshair=True)
                 cv2.destroyAllWindows()
+
+                # 还原到原始分辨率坐标
+                if scale_ratio < 1.0:
+                    x, y, w, h = (
+                        x / scale_ratio, y / scale_ratio,
+                        w / scale_ratio, h / scale_ratio,
+                    )
                 x1, y1, x2, y2 = int(x), int(y), int(x+w), int(y+h)
                 print(f"✅ 已选择: {x1},{y1},{x2},{y2}")
                 
