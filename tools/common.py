@@ -456,6 +456,7 @@ def calc_overlay_position(
     positions = {
         "bottom-right": (base_width - overlay_width - margin, base_height - overlay_height - margin),
         "bottom-left": (margin, base_height - overlay_height - margin),
+        "bottom-center": ((base_width - overlay_width) // 2, base_height * 4 // 5 - overlay_height // 2),
         "top-right": (base_width - overlay_width - margin, margin),
         "top-left": (margin, margin),
         "center": ((base_width - overlay_width) // 2, (base_height - overlay_height) // 2),

@@ -162,6 +162,7 @@ def _render_text_on_pil_image(
     opacity: float,
     position: str | tuple[int, int],
     margin: int,
+    stroke_width: int = ADD_WATERMARK_STROKE_WIDTH,
 ) -> Image.Image:
     """
     在 PIL Image 上渲染文字水印 (带透明度)
@@ -175,7 +176,7 @@ def _render_text_on_pil_image(
     draw = ImageDraw.Draw(txt_layer)
 
     # 测量文字尺寸
-    bbox = draw.textbbox((0, 0), text, font=font)
+    bbox = draw.textbbox((0, 0), text, font=font, stroke_width=stroke_width)
     text_width = bbox[2] - bbox[0]
     text_height = bbox[3] - bbox[1]
 
@@ -184,7 +185,8 @@ def _render_text_on_pil_image(
 
     # 绘制带透明度的文字
     alpha = int(opacity * 255)
-    draw.text((x, y), text, font=font, fill=(*color, alpha))
+    draw.text((x, y), text, font=font, fill=(*color, alpha),
+              stroke_width=stroke_width, stroke_fill=(*color, alpha))
 
     # 合成
     result = Image.alpha_composite(base, txt_layer)
@@ -200,6 +202,7 @@ def _create_watermark_layer(
     opacity: float,
     position: str | tuple[int, int],
     margin: int,
+    stroke_width: int = ADD_WATERMARK_STROKE_WIDTH,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     创建全尺寸的水印层 (用于视频合成优化)
@@ -213,14 +216,15 @@ def _create_watermark_layer(
     layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(layer)
     
-    bbox = draw.textbbox((0, 0), text, font=font)
+    bbox = draw.textbbox((0, 0), text, font=font, stroke_width=stroke_width)
     text_width = bbox[2] - bbox[0]
     text_height = bbox[3] - bbox[1]
     
     x, y = calc_overlay_position(width, height, text_width, text_height, position, margin)
     
     alpha_val = int(opacity * 255)
-    draw.text((x, y), text, font=font, fill=(*color, alpha_val))
+    draw.text((x, y), text, font=font, fill=(*color, alpha_val),
+              stroke_width=stroke_width, stroke_fill=(*color, alpha_val))
     
     # 转换为 NumPy 数组
     layer_np = np.array(layer) # RGBA, (H, W, 4)
@@ -260,6 +264,7 @@ def add_text_watermark_image(
     opacity: float = ADD_WATERMARK_OPACITY,
     position: str | tuple[int, int] = ADD_WATERMARK_POSITION,
     margin: int = ADD_WATERMARK_MARGIN,
+    stroke_width: int = ADD_WATERMARK_STROKE_WIDTH,
 ) -> dict:
     """
     为图片添加文字水印
@@ -277,7 +282,7 @@ def add_text_watermark_image(
     font = _get_font(font_path, font_size, text=text)
 
     result_image = _render_text_on_pil_image(
-        pil_image, text, font, color, opacity, position, margin,
+        pil_image, text, font, color, opacity, position, margin, stroke_width,
     )
 
     # 输出
@@ -308,6 +313,7 @@ def add_text_watermark_video(
     opacity: float = ADD_WATERMARK_OPACITY,
     position: str | tuple[int, int] = ADD_WATERMARK_POSITION,
     margin: int = ADD_WATERMARK_MARGIN,
+    stroke_width: int = ADD_WATERMARK_STROKE_WIDTH,
 ) -> dict:
     """
     为视频添加文字水印
@@ -331,7 +337,7 @@ def add_text_watermark_video(
     with VideoFrameProcessor(video_path, output_path) as vp:
         # 预渲染水印层 (性能优化: 提取 ROI)
         x, y, w, h, overlay_bgr, overlay_alpha = _create_watermark_layer(
-            vp.width, vp.height, text, font, color, opacity, position, margin
+            vp.width, vp.height, text, font, color, opacity, position, margin, stroke_width
         )
         
         # 将 overlay 转为 float 放在循环外

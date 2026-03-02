@@ -15,7 +15,7 @@ from InquirerPy import inquirer
 from InquirerPy.base.control import Choice
 from InquirerPy.separator import Separator
 
-from config import INPUT_DIR, UPSCALE_FACTOR, INTERPOLATION_TARGET_FPS, ensure_dirs
+from config import INPUT_DIR, UPSCALE_FACTOR, INTERPOLATION_TARGET_FPS, ADD_WATERMARK_TEXT, ensure_dirs
 from tools.common import scan_videos, scan_media, logger
 
 # 引入各个批量处理去水、超分等函数
@@ -337,7 +337,7 @@ def menu_add_watermark(media: list[Path]):
         return
 
     if wm_type == "text":
-        text = inquirer.text(message="水印文字:").execute()
+        text = inquirer.text(message="水印文字:", default=ADD_WATERMARK_TEXT).execute()
         if not text.strip():
             print("❌ 水印文字不能为空")
             return
@@ -347,6 +347,7 @@ def menu_add_watermark(media: list[Path]):
             choices=[
                 Choice("bottom-right", "↘️  右下角"),
                 Choice("bottom-left", "↙️  左下角"),
+                Choice("bottom-center", "⬇️  居中靠下"),
                 Choice("top-right", "↗️  右上角"),
                 Choice("top-left", "↖️  左上角"),
                 Choice("center", "⊕  居中"),
@@ -354,7 +355,7 @@ def menu_add_watermark(media: list[Path]):
             default="bottom-right",
         ).execute()
 
-        font_size = int(inquirer.number(message="字号:", default=36).execute())
+        font_size = int(inquirer.number(message="字号:", default=50).execute())
         opacity = float(inquirer.text(message="透明度 (0.0~1.0):", default="0.7").execute())
 
         if inquirer.confirm(message=f"是否查看将要处理的 {len(media)} 个文件列表?", default=False).execute():
@@ -380,6 +381,7 @@ def menu_add_watermark(media: list[Path]):
             choices=[
                 Choice("bottom-right", "↘️  右下角"),
                 Choice("bottom-left", "↙️  左下角"),
+                Choice("bottom-center", "⬇️  居中靠下"),
                 Choice("top-right", "↗️  右上角"),
                 Choice("top-left", "↖️  左上角"),
                 Choice("center", "⊕  居中"),

@@ -37,12 +37,14 @@ FFPROBE_BIN = "ffprobe"
 WATERMARK_INPAINT_RADIUS = 5            # OpenCV inpaint 修复半径
 
 # 加水印
-ADD_WATERMARK_FONT_SIZE = 36            # 默认字号
+ADD_WATERMARK_FONT_SIZE = 50            # 默认字号
 ADD_WATERMARK_OPACITY = 0.7             # 默认透明度 (0.0~1.0)
 ADD_WATERMARK_COLOR = (255, 255, 255)   # 默认颜色 (白色, RGB)
 ADD_WATERMARK_POSITION = "bottom-right" # 默认位置
 ADD_WATERMARK_MARGIN = 20               # 距离边缘的像素间距
 ADD_WATERMARK_LOGO_SCALE = 0.15         # Logo 水印占画面宽度比例
+ADD_WATERMARK_TEXT = "XΞЯΛ.ΛI"          # 默认水印文字
+ADD_WATERMARK_STROKE_WIDTH = 1          # 文字描边宽度 (模拟加粗, 0=不加粗)
 
 # 高清重置
 UPSCALE_FACTOR = 2                      # 默认放大倍数 (2x / 4x)
