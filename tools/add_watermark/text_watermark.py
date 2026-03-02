@@ -31,7 +31,7 @@ from config import (
     OUTPUT_ADD_WATERMARK, IMAGE_EXTENSIONS, VIDEO_EXTENSIONS,
     ADD_WATERMARK_FONT_SIZE, ADD_WATERMARK_OPACITY,
     ADD_WATERMARK_COLOR, ADD_WATERMARK_POSITION, ADD_WATERMARK_MARGIN,
-    clamp,
+    ADD_WATERMARK_STROKE_WIDTH, clamp,
 )
 from tools.common import logger, VideoFrameProcessor, generate_output_name, calc_overlay_position
 
