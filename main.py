@@ -352,11 +352,20 @@ def menu_add_watermark(media: list[Path]):
                 Choice("top-left", "↖️  左上角"),
                 Choice("center", "⊕  居中"),
             ],
-            default="bottom-right",
+            default="bottom-center",
         ).execute()
 
         font_size = int(inquirer.number(message="字号:", default=50).execute())
         opacity = float(inquirer.text(message="透明度 (0.0~1.0):", default="0.7").execute())
+
+        blend_mode = inquirer.select(
+            message="混合模式:",
+            choices=[
+                Choice("multiply", "🎨 正片叠底 (自然融合)"),
+                Choice("normal", "📋 普通叠加 (标准透明)"),
+            ],
+            default="multiply",
+        ).execute()
 
         if inquirer.confirm(message=f"是否查看将要处理的 {len(media)} 个文件列表?", default=False).execute():
             print("\n文件列表:")
@@ -368,6 +377,7 @@ def menu_add_watermark(media: list[Path]):
             batch_add_text_watermark(
                 files=media, text=text,
                 position=position, font_size=font_size, opacity=opacity,
+                blend_mode=blend_mode,
             )
 
     elif wm_type == "image":
@@ -386,7 +396,7 @@ def menu_add_watermark(media: list[Path]):
                 Choice("top-left", "↖️  左上角"),
                 Choice("center", "⊕  居中"),
             ],
-            default="bottom-right",
+            default="bottom-center",
         ).execute()
 
         scale = float(inquirer.text(message="Logo 大小比例 (0.0~1.0):", default="0.15").execute())

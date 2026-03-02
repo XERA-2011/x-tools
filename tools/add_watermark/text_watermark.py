@@ -163,6 +163,7 @@ def _render_text_on_pil_image(
     position: str | tuple[int, int],
     margin: int,
     stroke_width: int = ADD_WATERMARK_STROKE_WIDTH,
+    blend_mode: str = "normal",
 ) -> Image.Image:
     """
     在 PIL Image 上渲染文字水印 (带透明度)
@@ -189,7 +190,20 @@ def _render_text_on_pil_image(
               stroke_width=stroke_width, stroke_fill=(*color, alpha))
 
     # 合成
-    result = Image.alpha_composite(base, txt_layer)
+    if blend_mode == "multiply":
+        # 正片叠底: base * overlay / 255 (仅在有文字的地方)
+        base_arr = np.array(base).astype(float)
+        txt_arr = np.array(txt_layer).astype(float)
+        txt_alpha = txt_arr[:, :, 3:4] / 255.0
+        txt_rgb = txt_arr[:, :, :3]
+        # Multiply: base_rgb * txt_rgb / 255, 然后按 alpha 混合
+        blended_rgb = base_arr[:, :, :3] * txt_rgb / 255.0
+        result_rgb = base_arr[:, :, :3] * (1.0 - txt_alpha) + blended_rgb * txt_alpha
+        result_arr = base_arr.copy()
+        result_arr[:, :, :3] = np.clip(result_rgb, 0, 255)
+        result = Image.fromarray(result_arr.astype(np.uint8), "RGBA")
+    else:
+        result = Image.alpha_composite(base, txt_layer)
     return result
 
 
@@ -265,6 +279,7 @@ def add_text_watermark_image(
     position: str | tuple[int, int] = ADD_WATERMARK_POSITION,
     margin: int = ADD_WATERMARK_MARGIN,
     stroke_width: int = ADD_WATERMARK_STROKE_WIDTH,
+    blend_mode: str = "normal",
 ) -> dict:
     """
     为图片添加文字水印
@@ -282,7 +297,7 @@ def add_text_watermark_image(
     font = _get_font(font_path, font_size, text=text)
 
     result_image = _render_text_on_pil_image(
-        pil_image, text, font, color, opacity, position, margin, stroke_width,
+        pil_image, text, font, color, opacity, position, margin, stroke_width, blend_mode,
     )
 
     # 输出
@@ -314,6 +329,7 @@ def add_text_watermark_video(
     position: str | tuple[int, int] = ADD_WATERMARK_POSITION,
     margin: int = ADD_WATERMARK_MARGIN,
     stroke_width: int = ADD_WATERMARK_STROKE_WIDTH,
+    blend_mode: str = "normal",
 ) -> dict:
     """
     为视频添加文字水印
@@ -344,12 +360,17 @@ def add_text_watermark_video(
         overlay_bgr_float = overlay_bgr.astype(float)
         
         for frame in vp.frames(desc="添加文字水印"):
-            # 仅在 ROI 范围内进行 Alpha Blending
+            # 仅在 ROI 范围内进行 Blending
             roi = frame[y:y+h, x:x+w].astype(float)
-            
-            # Blend: src * (1 - alpha) + overlay * alpha
-            out_roi = roi * (1.0 - overlay_alpha) + overlay_bgr_float * overlay_alpha
-            
+
+            if blend_mode == "multiply":
+                # 正片叠底: base * overlay / 255
+                blended = roi * overlay_bgr_float / 255.0
+                out_roi = roi * (1.0 - overlay_alpha) + blended * overlay_alpha
+            else:
+                # 标准 Alpha Blending
+                out_roi = roi * (1.0 - overlay_alpha) + overlay_bgr_float * overlay_alpha
+
             # 放回原图
             frame[y:y+h, x:x+w] = out_roi.astype(np.uint8)
             vp.write(frame)
