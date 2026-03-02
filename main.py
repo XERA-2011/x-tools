@@ -356,18 +356,18 @@ def menu_add_watermark(media: list[Path]):
         ).execute()
 
         font_size = int(inquirer.number(message="字号:", default=50).execute())
-        opacity = float(inquirer.text(message="透明度 (0.0~1.0):", default="0.7").execute())
+        opacity = float(inquirer.text(message="透明度 (0.0~1.0):", default="0.9").execute())
 
         blend_mode = inquirer.select(
             message="混合模式:",
             choices=[
-                Choice("soft_light", "🌗 柔光 (自然融合, 推荐)"),
                 Choice("overlay", "🔆 叠加 (对比强烈, 有质感)"),
+                Choice("soft_light", "🌗 柔光 (自然融合)"),
                 Choice("screen", "✨ 滤色 (暗背景提亮)"),
                 Choice("multiply", "🔲 正片叠底 (暗色水印用)"),
                 Choice("normal", "📋 普通叠加 (标准透明)"),
             ],
-            default="soft_light",
+            default="overlay",
         ).execute()
 
         if inquirer.confirm(message=f"是否查看将要处理的 {len(media)} 个文件列表?", default=False).execute():
