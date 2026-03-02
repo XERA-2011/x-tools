@@ -49,6 +49,7 @@ python main.py
 - 🏷️ **加水印**: 文字水印 (支持中文) / 图片水印 (Logo), 支持图片和视频。
 - 🆙 **高清重置**: 批量 2x/4x 放大 (使用 Real-ESRGAN AI 或 FFmpeg)。
 - 🔄 **格式转换**: 视频格式互转 / 提取音频 / 去除音频 / 快速无损封装。
+- 📊 **查看信息**: 显示分辨率、清晰度等级、帧率、编码器、码率、音频等详细信息。
 
 ---
 
@@ -122,6 +123,15 @@ python tools/convert/ffmpeg_convert.py video.mkv -f mp4 --copy
 python tools/convert/batch.py -f mp4
 ```
 
+### 6. 📊 查看媒体信息
+```bash
+# 单个文件详细信息 (分辨率、清晰度、帧率、编码器、码率、音频等)
+python tools/mediainfo/probe.py video.mp4
+
+# 多文件汇总对比
+python tools/mediainfo/probe.py video1.mp4 video2.mkv video3.mov
+```
+
 ---
 
 ## 🗂️ 目录结构
@@ -136,7 +146,8 @@ x-tools/
     ├── add_watermark/            # 加水印模块 (文字, Logo)
     ├── upscale/                  # 超分模块 (Real-ESRGAN, FFmpeg)
     ├── interpolation/            # 插帧模块 (RIFE, FFmpeg)
-    └── convert/                  # 格式转换模块 (FFmpeg)
+    ├── convert/                  # 格式转换模块 (FFmpeg)
+    └── mediainfo/                # 媒体信息查看 (FFprobe)
 ```
 
 ## 📦 依赖说明

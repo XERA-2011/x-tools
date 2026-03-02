@@ -25,6 +25,7 @@ from tools.interpolation.batch import batch_interpolate_ffmpeg, batch_interpolat
 from tools.add_watermark.batch import batch_add_text_watermark, batch_add_image_watermark
 from tools.convert.batch import batch_convert
 from tools.convert.ffmpeg_convert import VIDEO_FORMATS, AUDIO_FORMATS
+from tools.mediainfo.probe import get_detailed_info, display_info, display_batch_summary
 
 
 def get_input_videos() -> list[Path] | None:
@@ -465,6 +466,34 @@ def menu_convert(media: list[Path]):
         )
 
 
+def menu_mediainfo(media: list[Path]):
+    """查看媒体信息菜单"""
+    if len(media) == 1:
+        # 单文件: 直接展示详细信息
+        info = get_detailed_info(media[0])
+        display_info(info)
+    else:
+        view_mode = inquirer.select(
+            message=f"已选择 {len(media)} 个文件, 查看方式:",
+            choices=[
+                Choice("summary", "📊 汇总表格 (所有文件对比)"),
+                Choice("detail", "📋 逐个查看 (每个文件详细信息)"),
+                Separator(),
+                Choice("back", "⬅️  返回上一级"),
+            ],
+        ).execute()
+
+        if view_mode == "back":
+            return
+
+        if view_mode == "summary":
+            display_batch_summary(media)
+        else:
+            for f in media:
+                info = get_detailed_info(f)
+                display_info(info)
+
+
 def _check_ffmpeg():
     """检测 FFmpeg 是否可用"""
     if not shutil.which("ffmpeg"):
@@ -498,6 +527,7 @@ def main():
                 Choice("upscale", "🆙 高清重置 (Upscale)"),
                 Choice("interpolate", "⏯️  帧数补充 (Interpolate)"),
                 Choice("convert", "🔄 格式转换 (Convert)"),
+                Choice("mediainfo", "📊 查看信息 (Media Info)"),
                 Separator(),
                 Choice("exit", "❌ 退出"),
             ],
@@ -509,17 +539,19 @@ def main():
             sys.exit(0)
 
         # 获取输入
-        if module == "add_watermark" or module == "convert":
+        if module in ("add_watermark", "convert", "mediainfo"):
             media = get_input_media()
             if media is None:
-                continue  # 用户选择返回上一级
+                continue
             if not media:
                 print("❌ 未找到媒体文件")
                 continue
             if module == "add_watermark":
                 menu_add_watermark(media)
-            else:
+            elif module == "convert":
                 menu_convert(media)
+            elif module == "mediainfo":
+                menu_mediainfo(media)
         else:
             videos = get_input_videos()
             if videos is None:
