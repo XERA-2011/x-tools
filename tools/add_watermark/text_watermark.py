@@ -206,6 +206,11 @@ def _render_text_on_pil_image(
         elif blend_mode == "screen":
             # 滤色: 亮色水印效果, 适合暗背景
             blended = 255.0 - (255.0 - base_rgb) * (255.0 - txt_rgb) / 255.0
+        elif blend_mode == "overlay":
+            # 叠加: 亮处更亮暗处更暗, 对比强烈
+            low = 2 * base_rgb * txt_rgb / 255.0
+            high = 255.0 - 2 * (255.0 - base_rgb) * (255.0 - txt_rgb) / 255.0
+            blended = np.where(base_rgb <= 128, low, high)
         else:  # soft_light
             # 柔光: 自然融合, 亮处提亮暗处加深
             low = 2 * base_rgb * txt_rgb / 255.0 + (base_rgb / 255.0) ** 2 * (255.0 - 2 * txt_rgb)
@@ -379,6 +384,10 @@ def add_text_watermark_video(
                 blended = roi * overlay_bgr_float / 255.0
             elif blend_mode == "screen":
                 blended = 255.0 - (255.0 - roi) * (255.0 - overlay_bgr_float) / 255.0
+            elif blend_mode == "overlay":
+                low = 2 * roi * overlay_bgr_float / 255.0
+                high = 255.0 - 2 * (255.0 - roi) * (255.0 - overlay_bgr_float) / 255.0
+                blended = np.where(roi <= 128, low, high)
             elif blend_mode == "soft_light":
                 low = 2 * roi * overlay_bgr_float / 255.0 + (roi / 255.0) ** 2 * (255.0 - 2 * overlay_bgr_float)
                 high = 2 * roi * (255.0 - overlay_bgr_float) / 255.0 + np.sqrt(roi / 255.0) * (2 * overlay_bgr_float - 255.0)

@@ -362,6 +362,7 @@ def menu_add_watermark(media: list[Path]):
             message="混合模式:",
             choices=[
                 Choice("soft_light", "🌗 柔光 (自然融合, 推荐)"),
+                Choice("overlay", "🔆 叠加 (对比强烈, 有质感)"),
                 Choice("screen", "✨ 滤色 (暗背景提亮)"),
                 Choice("multiply", "🔲 正片叠底 (暗色水印用)"),
                 Choice("normal", "📋 普通叠加 (标准透明)"),
