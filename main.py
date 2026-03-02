@@ -361,10 +361,12 @@ def menu_add_watermark(media: list[Path]):
         blend_mode = inquirer.select(
             message="混合模式:",
             choices=[
-                Choice("multiply", "🎨 正片叠底 (自然融合)"),
+                Choice("soft_light", "🌗 柔光 (自然融合, 推荐)"),
+                Choice("screen", "✨ 滤色 (暗背景提亮)"),
+                Choice("multiply", "🔲 正片叠底 (暗色水印用)"),
                 Choice("normal", "📋 普通叠加 (标准透明)"),
             ],
-            default="multiply",
+            default="soft_light",
         ).execute()
 
         if inquirer.confirm(message=f"是否查看将要处理的 {len(media)} 个文件列表?", default=False).execute():
