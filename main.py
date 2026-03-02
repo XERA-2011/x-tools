@@ -23,6 +23,8 @@ from tools.watermark.batch import batch_remove_watermark_opencv, batch_remove_wa
 from tools.upscale.batch import batch_upscale_ffmpeg, batch_upscale_realesrgan
 from tools.interpolation.batch import batch_interpolate_ffmpeg, batch_interpolate_rife
 from tools.add_watermark.batch import batch_add_text_watermark, batch_add_image_watermark
+from tools.convert.batch import batch_convert
+from tools.convert.ffmpeg_convert import VIDEO_FORMATS, AUDIO_FORMATS
 
 
 def get_input_videos() -> list[Path] | None:
@@ -400,6 +402,69 @@ def menu_add_watermark(media: list[Path]):
             )
 
 
+def menu_convert(media: list[Path]):
+    """格式转换菜单"""
+    mode = inquirer.select(
+        message="选择转换模式:",
+        choices=[
+            Choice("transcode", "🎬 视频格式转换 (MKV/MOV/AVI ↔ MP4 等)"),
+            Choice("audio", "🎵 提取音频 (视频 → MP3/AAC/WAV/FLAC)"),
+            Choice("strip", "🔇 去除音频 (仅保留视频流)"),
+            Choice("remux", "⚡ 快速封装 (无损换容器, 极快)"),
+            Separator(),
+            Choice("back", "⬅️  返回上一级"),
+        ],
+    ).execute()
+
+    if mode == "back":
+        return
+
+    video_fmts = sorted(VIDEO_FORMATS.keys())
+    audio_fmts = sorted(AUDIO_FORMATS.keys())
+
+    if mode == "audio":
+        target_format = inquirer.select(
+            message="目标音频格式:",
+            choices=[Choice(f, f".{f}") for f in audio_fmts],
+            default="mp3",
+        ).execute()
+    elif mode in ("transcode", "strip", "remux"):
+        target_format = inquirer.select(
+            message="目标视频格式:",
+            choices=[Choice(f, f".{f}") for f in video_fmts],
+            default="mp4",
+        ).execute()
+
+    # 转码模式可选编码器
+    video_codec = None
+    if mode == "transcode":
+        codec_choice = inquirer.select(
+            message="视频编码器:",
+            choices=[
+                Choice(None, "🔧 默认 (根据格式自动选择)"),
+                Choice("libx264", "H.264 (兼容性最好)"),
+                Choice("libx265", "H.265/HEVC (更好压缩, 部分平台不支持)"),
+            ],
+            default=None,
+        ).execute()
+        video_codec = codec_choice
+
+    if inquirer.confirm(message=f"是否查看将要处理的 {len(media)} 个文件列表?", default=False).execute():
+        print("\n文件列表:")
+        for f in media:
+            print(f"  - {f.name}")
+        print()
+
+    if inquirer.confirm(message=f"确认转换 {len(media)} 个文件 → .{target_format}?", default=True).execute():
+        batch_convert(
+            files=media,
+            target_format=target_format,
+            video_codec=video_codec,
+            copy_streams=(mode == "remux"),
+            strip_audio=(mode == "strip"),
+        )
+
+
 def _check_ffmpeg():
     """检测 FFmpeg 是否可用"""
     if not shutil.which("ffmpeg"):
@@ -432,6 +497,7 @@ def main():
                 Choice("add_watermark", "🏷️  增加水印 (Add Watermark)"),
                 Choice("upscale", "🆙 高清重置 (Upscale)"),
                 Choice("interpolate", "⏯️  帧数补充 (Interpolate)"),
+                Choice("convert", "🔄 格式转换 (Convert)"),
                 Separator(),
                 Choice("exit", "❌ 退出"),
             ],
@@ -443,14 +509,17 @@ def main():
             sys.exit(0)
 
         # 获取输入
-        if module == "add_watermark":
+        if module == "add_watermark" or module == "convert":
             media = get_input_media()
             if media is None:
                 continue  # 用户选择返回上一级
             if not media:
                 print("❌ 未找到媒体文件")
                 continue
-            menu_add_watermark(media)
+            if module == "add_watermark":
+                menu_add_watermark(media)
+            else:
+                menu_convert(media)
         else:
             videos = get_input_videos()
             if videos is None:

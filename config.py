@@ -15,6 +15,7 @@ OUTPUT_WATERMARK = OUTPUT_DIR / "watermark"
 OUTPUT_ADD_WATERMARK = OUTPUT_DIR / "add_watermark"
 OUTPUT_UPSCALE = OUTPUT_DIR / "upscale"
 OUTPUT_INTERPOLATION = OUTPUT_DIR / "interpolation"
+OUTPUT_CONVERT = OUTPUT_DIR / "convert"
 
 # ============================================================
 # 支持的视频格式
@@ -53,7 +54,8 @@ INTERPOLATION_TARGET_FPS = 60           # 目标帧率
 def ensure_dirs():
     """确保所有必要目录存在"""
     for d in [INPUT_DIR, OUTPUT_WATERMARK,
-              OUTPUT_ADD_WATERMARK, OUTPUT_UPSCALE, OUTPUT_INTERPOLATION]:
+              OUTPUT_ADD_WATERMARK, OUTPUT_UPSCALE, OUTPUT_INTERPOLATION,
+              OUTPUT_CONVERT]:
         d.mkdir(parents=True, exist_ok=True)
 
 

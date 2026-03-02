@@ -2,7 +2,7 @@
 
 一个简单易用的批处理工具箱，专注于视频修复与增强。
 
-**核心功能**: 去水印 (OpenCV/LaMA 深度学习)、高清重置 (Real-ESRGAN/FFmpeg)、帧数补充 (RIFE)。
+**核心功能**: 去水印 (OpenCV/LaMA 深度学习)、高清重置 (Real-ESRGAN/FFmpeg)、帧数补充 (RIFE)、格式转换 (FFmpeg)。
 
 ## � 快速开始 (30秒上手)
 
@@ -48,6 +48,7 @@ python main.py
 - 💧 **去水印**: 支持鼠标框选区域 (OpenCV 快速修复 / LaMA 深度学习无痕修复)。
 - 🏷️ **加水印**: 文字水印 (支持中文) / 图片水印 (Logo), 支持图片和视频。
 - 🆙 **高清重置**: 批量 2x/4x 放大 (使用 Real-ESRGAN AI 或 FFmpeg)。
+- 🔄 **格式转换**: 视频格式互转 / 提取音频 / 去除音频 / 快速无损封装。
 
 ---
 
@@ -100,6 +101,27 @@ python tools/upscale/ffmpeg_scale.py video.mp4 -s 2
 python tools/interpolation/rife.py video.mp4 -m 2
 ```
 
+### 5. 🔄 格式转换
+```bash
+# 视频格式转换 (MKV → MP4)
+python tools/convert/ffmpeg_convert.py video.mkv -f mp4
+
+# 转码为 H.265 (更好压缩)
+python tools/convert/ffmpeg_convert.py video.mp4 -f mp4 --video-codec libx265
+
+# 提取音频 (视频 → MP3)
+python tools/convert/ffmpeg_convert.py video.mp4 -f mp3
+
+# 去除音频 (仅保留视频)
+python tools/convert/ffmpeg_convert.py video.mp4 -f mp4 --strip-audio
+
+# 快速封装 (无损换容器, 极快)
+python tools/convert/ffmpeg_convert.py video.mkv -f mp4 --copy
+
+# 批量转换
+python tools/convert/batch.py -f mp4
+```
+
 ---
 
 ## 🗂️ 目录结构
@@ -113,7 +135,8 @@ x-tools/
     ├── watermark/                # 去水印模块 (OpenCV, LaMA)
     ├── add_watermark/            # 加水印模块 (文字, Logo)
     ├── upscale/                  # 超分模块 (Real-ESRGAN, FFmpeg)
-    └── interpolation/            # 插帧模块 (RIFE, FFmpeg)
+    ├── interpolation/            # 插帧模块 (RIFE, FFmpeg)
+    └── convert/                  # 格式转换模块 (FFmpeg)
 ```
 
 ## 📦 依赖说明
