@@ -350,14 +350,14 @@ def menu_add_watermark(media: list[Path]):
             message="水印位置 (居中靠下):",
             choices=[
                 Choice("bottom-center-5", "1/5 (距底较远)"),
-                Choice("bottom-center-6", "1/6"),
-                Choice("bottom-center-7", "1/7 (距底较近)"),
+                Choice("bottom-center-10", "1/10"),
+                Choice("bottom-center-16", "1/16 (距底较近)"),
             ],
-            default="bottom-center-6",
+            default="bottom-center-16",
         ).execute()
 
-        font_size = int(inquirer.number(message="字号:", default=60).execute())
-        opacity = float(inquirer.text(message="透明度 (0.0~1.0):", default="0.6").execute())
+        font_size = int(inquirer.number(message="字号:", default=50).execute())
+        opacity = float(inquirer.text(message="透明度 (0.0~1.0):", default="0.9").execute())
 
         blend_mode = inquirer.select(
             message="混合模式:",
@@ -371,6 +371,9 @@ def menu_add_watermark(media: list[Path]):
             default="overlay",
         ).execute()
 
+        bold = inquirer.confirm(message="是否加粗?", default=False).execute()
+        stroke_width = 1 if bold else 0
+
         if inquirer.confirm(message=f"是否查看将要处理的 {len(media)} 个文件列表?", default=False).execute():
             print("\n文件列表:")
             for v in media:
@@ -381,7 +384,7 @@ def menu_add_watermark(media: list[Path]):
             batch_add_text_watermark(
                 files=media, text=text,
                 position=position, font_size=font_size, opacity=opacity,
-                blend_mode=blend_mode,
+                blend_mode=blend_mode, stroke_width=stroke_width,
             )
 
     elif wm_type == "image":
