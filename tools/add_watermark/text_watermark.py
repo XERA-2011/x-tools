@@ -152,6 +152,32 @@ def _get_font(font_path: str | None = None, font_size: int = 36, text: str = "")
 # ============================================================
 # 核心渲染
 # ============================================================
+def _calc_spaced_text_size(draw, text, font, stroke_width, letter_spacing):
+    """计算拉开字间距后的文字总尺寸"""
+    total_width = 0
+    max_height = 0
+    for i, char in enumerate(text):
+        bbox = draw.textbbox((0, 0), char, font=font, stroke_width=stroke_width)
+        char_w = bbox[2] - bbox[0]
+        char_h = bbox[3] - bbox[1]
+        total_width += char_w
+        if i < len(text) - 1:
+            total_width += letter_spacing
+        max_height = max(max_height, char_h)
+    return total_width, max_height
+
+
+def _draw_spaced_text(draw, x, y, text, font, fill, stroke_width, letter_spacing):
+    """逐字绘制, 每个字符之间添加额外间距"""
+    cursor_x = x
+    for char in text:
+        bbox = draw.textbbox((0, 0), char, font=font, stroke_width=stroke_width)
+        char_w = bbox[2] - bbox[0]
+        draw.text((cursor_x, y), char, font=font, fill=fill,
+                  stroke_width=stroke_width, stroke_fill=fill)
+        cursor_x += char_w + letter_spacing
+
+
 def _render_text_on_pil_image(
     pil_image: Image.Image,
     text: str,
@@ -162,6 +188,7 @@ def _render_text_on_pil_image(
     margin: int,
     stroke_width: int = ADD_WATERMARK_STROKE_WIDTH,
     blend_mode: str = "normal",
+    letter_spacing: int = 0,
 ) -> Image.Image:
     """
     在 PIL Image 上渲染文字水印 (带透明度)
@@ -174,51 +201,44 @@ def _render_text_on_pil_image(
     txt_layer = Image.new("RGBA", base.size, (255, 255, 255, 0))
     draw = ImageDraw.Draw(txt_layer)
 
-    # 测量文字尺寸
-    bbox = draw.textbbox((0, 0), text, font=font, stroke_width=stroke_width)
-    text_width = bbox[2] - bbox[0]
-    text_height = bbox[3] - bbox[1]
-
-    # 计算位置
-    x, y = calc_overlay_position(base.size[0], base.size[1], text_width, text_height, position, margin)
-
-    # 绘制带透明度的文字
     alpha = int(opacity * 255)
-    draw.text((x, y), text, font=font, fill=(*color, alpha),
-              stroke_width=stroke_width, stroke_fill=(*color, alpha))
+
+    if letter_spacing > 0:
+        # 拉开字间距: 逐字绘制
+        text_width, text_height = _calc_spaced_text_size(draw, text, font, stroke_width, letter_spacing)
+        x, y = calc_overlay_position(base.size[0], base.size[1], text_width, text_height, position, margin)
+        _draw_spaced_text(draw, x, y, text, font, (*color, alpha), stroke_width, letter_spacing)
+    else:
+        bbox = draw.textbbox((0, 0), text, font=font, stroke_width=stroke_width)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+        x, y = calc_overlay_position(base.size[0], base.size[1], text_width, text_height, position, margin)
+        draw.text((x, y), text, font=font, fill=(*color, alpha),
+                  stroke_width=stroke_width, stroke_fill=(*color, alpha))
 
     # 合成
-    if blend_mode == "normal":
-        result = Image.alpha_composite(base, txt_layer)
-    else:
-        # 高级混合模式: 先计算混合结果, 再按文字 alpha 融合
+    if blend_mode == "overlay":
+        # 叠加 (双重增强): 亮处更亮暗处更暗
         base_arr = np.array(base).astype(float)
         txt_arr = np.array(txt_layer).astype(float)
         txt_alpha = txt_arr[:, :, 3:4] / 255.0
         txt_rgb = txt_arr[:, :, :3]
         base_rgb = base_arr[:, :, :3]
 
-        if blend_mode == "multiply":
-            # 正片叠底: 暗色水印效果, 白色无效果
-            blended = base_rgb * txt_rgb / 255.0
-        elif blend_mode == "screen":
-            # 滤色: 亮色水印效果, 适合暗背景
-            blended = 255.0 - (255.0 - base_rgb) * (255.0 - txt_rgb) / 255.0
-        elif blend_mode == "overlay":
-            # 叠加: 亮处更亮暗处更暗, 对比强烈
-            low = 2 * base_rgb * txt_rgb / 255.0
-            high = 255.0 - 2 * (255.0 - base_rgb) * (255.0 - txt_rgb) / 255.0
-            blended = np.where(base_rgb <= 128, low, high)
-        else:  # soft_light
-            # 柔光: 自然融合, 亮处提亮暗处加深
-            low = 2 * base_rgb * txt_rgb / 255.0 + (base_rgb / 255.0) ** 2 * (255.0 - 2 * txt_rgb)
-            high = 2 * base_rgb * (255.0 - txt_rgb) / 255.0 + np.sqrt(base_rgb / 255.0) * (2 * txt_rgb - 255.0)
-            blended = np.where(txt_rgb <= 128, low, high)
+        low = 2 * base_rgb * txt_rgb / 255.0
+        high = 255.0 - 2 * (255.0 - base_rgb) * (255.0 - txt_rgb) / 255.0
+        mid = np.where(base_rgb <= 128, low, high)
+        low2 = 2 * mid * txt_rgb / 255.0
+        high2 = 255.0 - 2 * (255.0 - mid) * (255.0 - txt_rgb) / 255.0
+        blended = np.where(mid <= 128, low2, high2)
 
         result_rgb = base_rgb * (1.0 - txt_alpha) + blended * txt_alpha
         result_arr = base_arr.copy()
         result_arr[:, :, :3] = np.clip(result_rgb, 0, 255)
         result = Image.fromarray(result_arr.astype(np.uint8), "RGBA")
+    else:
+        # normal: 标准透明叠加
+        result = Image.alpha_composite(base, txt_layer)
     return result
 
 
@@ -232,6 +252,7 @@ def _create_watermark_layer(
     position: str | tuple[int, int],
     margin: int,
     stroke_width: int = ADD_WATERMARK_STROKE_WIDTH,
+    letter_spacing: int = 0,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     创建全尺寸的水印层 (用于视频合成优化)
@@ -245,15 +266,19 @@ def _create_watermark_layer(
     layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(layer)
     
-    bbox = draw.textbbox((0, 0), text, font=font, stroke_width=stroke_width)
-    text_width = bbox[2] - bbox[0]
-    text_height = bbox[3] - bbox[1]
-    
-    x, y = calc_overlay_position(width, height, text_width, text_height, position, margin)
-    
     alpha_val = int(opacity * 255)
-    draw.text((x, y), text, font=font, fill=(*color, alpha_val),
-              stroke_width=stroke_width, stroke_fill=(*color, alpha_val))
+
+    if letter_spacing > 0:
+        text_width, text_height = _calc_spaced_text_size(draw, text, font, stroke_width, letter_spacing)
+        x, y = calc_overlay_position(width, height, text_width, text_height, position, margin)
+        _draw_spaced_text(draw, x, y, text, font, (*color, alpha_val), stroke_width, letter_spacing)
+    else:
+        bbox = draw.textbbox((0, 0), text, font=font, stroke_width=stroke_width)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+        x, y = calc_overlay_position(width, height, text_width, text_height, position, margin)
+        draw.text((x, y), text, font=font, fill=(*color, alpha_val),
+                  stroke_width=stroke_width, stroke_fill=(*color, alpha_val))
     
     # 转换为 NumPy 数组
     layer_np = np.array(layer) # RGBA, (H, W, 4)
@@ -295,6 +320,7 @@ def add_text_watermark_image(
     margin: int = ADD_WATERMARK_MARGIN,
     stroke_width: int = ADD_WATERMARK_STROKE_WIDTH,
     blend_mode: str = "normal",
+    letter_spacing: int = 0,
 ) -> dict:
     """
     为图片添加文字水印
@@ -312,7 +338,7 @@ def add_text_watermark_image(
     font = _get_font(font_path, font_size, text=text)
 
     result_image = _render_text_on_pil_image(
-        pil_image, text, font, color, opacity, position, margin, stroke_width, blend_mode,
+        pil_image, text, font, color, opacity, position, margin, stroke_width, blend_mode, letter_spacing,
     )
 
     # 输出
@@ -345,6 +371,7 @@ def add_text_watermark_video(
     margin: int = ADD_WATERMARK_MARGIN,
     stroke_width: int = ADD_WATERMARK_STROKE_WIDTH,
     blend_mode: str = "normal",
+    letter_spacing: int = 0,
 ) -> dict:
     """
     为视频添加文字水印
@@ -368,35 +395,27 @@ def add_text_watermark_video(
     with VideoFrameProcessor(video_path, output_path) as vp:
         # 预渲染水印层 (性能优化: 提取 ROI)
         x, y, w, h, overlay_bgr, overlay_alpha = _create_watermark_layer(
-            vp.width, vp.height, text, font, color, opacity, position, margin, stroke_width
+            vp.width, vp.height, text, font, color, opacity, position, margin, stroke_width, letter_spacing
         )
         
         # 将 overlay 转为 float 放在循环外
         overlay_bgr_float = overlay_bgr.astype(float)
         
         for frame in vp.frames(desc="添加文字水印"):
-            # 仅在 ROI 范围内进行 Blending
-            roi = frame[y:y+h, x:x+w].astype(float)
+            roi = frame[y:y+h, x:x+w]
+            roi_f = roi.astype(float)
 
-            if blend_mode == "multiply":
-                blended = roi * overlay_bgr_float / 255.0
-            elif blend_mode == "screen":
-                blended = 255.0 - (255.0 - roi) * (255.0 - overlay_bgr_float) / 255.0
-            elif blend_mode == "overlay":
-                low = 2 * roi * overlay_bgr_float / 255.0
-                high = 255.0 - 2 * (255.0 - roi) * (255.0 - overlay_bgr_float) / 255.0
-                blended = np.where(roi <= 128, low, high)
-            elif blend_mode == "soft_light":
-                low = 2 * roi * overlay_bgr_float / 255.0 + (roi / 255.0) ** 2 * (255.0 - 2 * overlay_bgr_float)
-                high = 2 * roi * (255.0 - overlay_bgr_float) / 255.0 + np.sqrt(roi / 255.0) * (2 * overlay_bgr_float - 255.0)
-                blended = np.where(overlay_bgr_float <= 128, low, high)
+            if blend_mode == "overlay":
+                low = 2 * roi_f * overlay_bgr_float / 255.0
+                high = 255.0 - 2 * (255.0 - roi_f) * (255.0 - overlay_bgr_float) / 255.0
+                mid = np.where(roi_f <= 128, low, high)
+                low2 = 2 * mid * overlay_bgr_float / 255.0
+                high2 = 255.0 - 2 * (255.0 - mid) * (255.0 - overlay_bgr_float) / 255.0
+                blended = np.where(mid <= 128, low2, high2)
+                out_roi = roi_f * (1.0 - overlay_alpha) + blended * overlay_alpha
             else:
-                blended = overlay_bgr_float  # normal fallback
-
-            if blend_mode == "normal":
-                out_roi = roi * (1.0 - overlay_alpha) + overlay_bgr_float * overlay_alpha
-            else:
-                out_roi = roi * (1.0 - overlay_alpha) + blended * overlay_alpha
+                # normal
+                out_roi = roi_f * (1.0 - overlay_alpha) + overlay_bgr_float * overlay_alpha
 
             # 放回原图
             frame[y:y+h, x:x+w] = np.clip(out_roi, 0, 255).astype(np.uint8)

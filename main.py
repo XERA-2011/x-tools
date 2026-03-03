@@ -355,22 +355,22 @@ def menu_add_watermark(media: list[Path]):
         ).execute()
 
         font_size = int(inquirer.number(message="字号:", default=50).execute())
-        opacity = float(inquirer.text(message="透明度 (0.0~1.0):", default="0.9").execute())
+        opacity = float(inquirer.text(message="透明度 (0.0~1.0):", default="0.6").execute())
 
         blend_mode = inquirer.select(
             message="混合模式:",
             choices=[
-                Choice("overlay", "🔆 叠加 (对比强烈, 有质感)"),
-                Choice("soft_light", "🌗 柔光 (自然融合)"),
-                Choice("screen", "✨ 滤色 (暗背景提亮)"),
-                Choice("multiply", "🔲 正片叠底 (暗色水印用)"),
-                Choice("normal", "📋 普通叠加 (标准透明)"),
+                Choice("overlay", "🔆 叠加"),
+                Choice("normal", "📋 普通叠加"),
             ],
             default="overlay",
         ).execute()
 
-        bold = inquirer.confirm(message="是否加粗?", default=False).execute()
+        bold = inquirer.confirm(message="是否加粗?", default=True).execute()
         stroke_width = 1 if bold else 0
+
+        wide_spacing = inquirer.confirm(message="是否拉开字间距?", default=True).execute()
+        letter_spacing = font_size // 3 if wide_spacing else 0
 
         if inquirer.confirm(message=f"是否查看将要处理的 {len(media)} 个文件列表?", default=False).execute():
             print("\n文件列表:")
@@ -383,6 +383,7 @@ def menu_add_watermark(media: list[Path]):
                 files=media, text=text,
                 position=position, font_size=font_size, opacity=opacity,
                 blend_mode=blend_mode, stroke_width=stroke_width,
+                letter_spacing=letter_spacing,
             )
 
     elif wm_type == "image":
