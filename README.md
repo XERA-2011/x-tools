@@ -50,6 +50,7 @@ python main.py
 - 🆙 **高清重置**: 批量 2x/4x 放大 (使用 Real-ESRGAN AI 或 FFmpeg)。
 - 🔄 **格式转换**: 视频格式互转 / 提取音频 / 去除音频 / 快速无损封装。
 - 📊 **查看信息**: 显示分辨率、清晰度等级、帧率、编码器、码率、音频等详细信息。
+- 🎨 **滤镜效果**: 8 种热门预设 (电影感/复古/赛博朋克/日系/黑白/暖色/冷色/高对比)。
 
 ---
 
@@ -66,6 +67,7 @@ x-tools/
     ├── upscale/                  # 超分模块 (Real-ESRGAN, FFmpeg)
     ├── interpolation/            # 插帧模块 (RIFE, FFmpeg)
     ├── convert/                  # 格式转换模块 (FFmpeg)
+    ├── filter/                   # 滤镜效果 (FFmpeg)
     └── mediainfo/                # 媒体信息查看 (FFprobe)
 ```
 

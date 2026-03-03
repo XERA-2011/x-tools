@@ -26,6 +26,8 @@ from tools.add_watermark.batch import batch_add_text_watermark, batch_add_image_
 from tools.convert.batch import batch_convert
 from tools.convert.ffmpeg_convert import VIDEO_FORMATS, AUDIO_FORMATS
 from tools.mediainfo.probe import get_detailed_info, display_info, display_batch_summary
+from tools.filter.batch import batch_filter
+from tools.filter.ffmpeg_filter import FILTER_PRESETS
 
 
 def get_input_videos() -> list[Path] | None:
@@ -509,6 +511,30 @@ def menu_mediainfo(media: list[Path]):
                 display_info(info)
 
 
+def menu_filter(media: list[Path]):
+    """滤镜效果菜单"""
+    # 构建选项列表: 展示滤镜名称 + 描述
+    filter_choices = [
+        Choice(key, f"{info['name']}  {info['desc']}")
+        for key, info in FILTER_PRESETS.items()
+    ]
+    preset = inquirer.select(
+        message="选择滤镜:",
+        choices=filter_choices,
+        default="cinematic",
+    ).execute()
+
+    if inquirer.confirm(message=f"是否查看将要处理的 {len(media)} 个文件列表?", default=False).execute():
+        print("\n文件列表:")
+        for f in media:
+            print(f"  - {f.name}")
+        print()
+
+    preset_name = FILTER_PRESETS[preset]["name"]
+    if inquirer.confirm(message=f"确认为 {len(media)} 个文件应用 {preset_name} 滤镜?", default=True).execute():
+        batch_filter(files=media, preset=preset)
+
+
 def _check_ffmpeg():
     """检测 FFmpeg 是否可用"""
     if not shutil.which("ffmpeg"):
@@ -534,6 +560,7 @@ def main():
                 Choice("upscale", "🆙 高清重置 (Upscale)"),
                 Choice("interpolate", "⏯️  帧数补充 (Interpolate)"),
                 Choice("convert", "🔄 格式转换 (Convert)"),
+                Choice("filter", "🎨 滤镜效果 (Filter)"),
                 Choice("mediainfo", "📊 查看信息 (Media Info)"),
                 Separator(),
                 Choice("exit", "❌ 退出"),
@@ -546,7 +573,7 @@ def main():
             sys.exit(0)
 
         # 获取输入
-        if module in ("add_watermark", "convert", "mediainfo"):
+        if module in ("add_watermark", "convert", "mediainfo", "filter"):
             media = get_input_media()
             if media is None:
                 continue
@@ -559,6 +586,8 @@ def main():
                 menu_convert(media)
             elif module == "mediainfo":
                 menu_mediainfo(media)
+            elif module == "filter":
+                menu_filter(media)
         else:
             videos = get_input_videos()
             if videos is None:
