@@ -28,6 +28,8 @@ from tools.convert.ffmpeg_convert import VIDEO_FORMATS, AUDIO_FORMATS
 from tools.mediainfo.probe import get_detailed_info, display_info, display_batch_summary
 from tools.filter.batch import batch_filter
 from tools.filter.ffmpeg_filter import FILTER_PRESETS
+from tools.crop.batch import batch_crop
+from tools.crop.ffmpeg_crop import ASPECT_RATIOS
 
 
 def get_input_videos() -> list[Path] | None:
@@ -511,6 +513,24 @@ def menu_mediainfo(media: list[Path]):
                 display_info(info)
 
 
+def menu_crop(media: list[Path]):
+    """裁切比例菜单"""
+    ratio = inquirer.select(
+        message="选择目标比例:",
+        choices=[
+            Choice("1:1", "⬜ 1:1 正方形"),
+            Choice("3:4", "📱 3:4 竖屏经典"),
+            Choice("4:3", "🖥️  4:3 横屏经典"),
+            Choice("9:16", "📲 9:16 竖屏全面"),
+            Choice("16:9", "🎬 16:9 横屏宽幅"),
+        ],
+        default="3:4",
+    ).execute()
+
+    if inquirer.confirm(message=f"确认将 {len(media)} 个文件裁切为 {ratio}?", default=True).execute():
+        batch_crop(files=media, ratio=ratio)
+
+
 def menu_filter(media: list[Path]):
     """滤镜效果菜单"""
     # 构建选项列表: 展示滤镜名称 + 描述
@@ -561,6 +581,7 @@ def main():
                 Choice("interpolate", "⏯️  帧数补充 (Interpolate)"),
                 Choice("convert", "🔄 格式转换 (Convert)"),
                 Choice("filter", "🎨 滤镜效果 (Filter)"),
+                Choice("crop", "✂️  裁切比例 (Crop)"),
                 Choice("mediainfo", "📊 查看信息 (Media Info)"),
                 Separator(),
                 Choice("exit", "❌ 退出"),
@@ -573,7 +594,7 @@ def main():
             sys.exit(0)
 
         # 获取输入
-        if module in ("add_watermark", "convert", "mediainfo", "filter"):
+        if module in ("add_watermark", "convert", "mediainfo", "filter", "crop"):
             media = get_input_media()
             if media is None:
                 continue
@@ -588,6 +609,8 @@ def main():
                 menu_mediainfo(media)
             elif module == "filter":
                 menu_filter(media)
+            elif module == "crop":
+                menu_crop(media)
         else:
             videos = get_input_videos()
             if videos is None:
