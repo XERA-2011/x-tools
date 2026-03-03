@@ -10,7 +10,7 @@
 from pathlib import Path
 
 from config import INPUT_DIR, ensure_dirs
-from tools.common import scan_videos, scan_media, batch_process, print_summary, logger
+from tools.common import scan_media, batch_process, print_summary
 from tools.convert.ffmpeg_convert import convert_media, ALL_FORMATS
 
 

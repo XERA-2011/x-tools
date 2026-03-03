@@ -4,7 +4,6 @@
 import json
 import logging
 import subprocess
-import sys
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime
@@ -24,7 +23,7 @@ from rich.progress import (
 )
 from rich.console import Console
 
-from config import VIDEO_EXTENSIONS, IMAGE_EXTENSIONS, FFPROBE_BIN, FFMPEG_BIN, OUTPUT_DIR
+from config import VIDEO_EXTENSIONS, IMAGE_EXTENSIONS, FFPROBE_BIN, FFMPEG_BIN
 
 # ============================================================
 # 日志配置
@@ -297,7 +296,6 @@ class VideoFrameProcessor:
         self.total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
         # 创建临时文件 (同目录下的隐藏文件)
-        import tempfile
         # 使用 tempfile 生成临时文件，但在 output_path 同级目录，避免跨盘符移动慢
         self.output_path.parent.mkdir(parents=True, exist_ok=True)
         # 用 .tmp 后缀

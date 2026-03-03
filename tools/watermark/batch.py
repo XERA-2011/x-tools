@@ -9,7 +9,7 @@ from pathlib import Path
 
 
 from config import INPUT_DIR, ensure_dirs
-from tools.common import scan_videos, batch_process, print_summary, logger, parse_region
+from tools.common import scan_videos, batch_process, print_summary, parse_region
 from tools.watermark.opencv_inpaint import remove_watermark_opencv
 
 

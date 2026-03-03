@@ -18,8 +18,6 @@
   pip install Pillow
 """
 import platform
-import sys
-import unicodedata
 from pathlib import Path
 
 import cv2

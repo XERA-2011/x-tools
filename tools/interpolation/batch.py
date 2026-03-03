@@ -9,7 +9,7 @@ from pathlib import Path
 
 
 from config import INPUT_DIR, INTERPOLATION_TARGET_FPS, ensure_dirs
-from tools.common import scan_videos, batch_process, print_summary, logger
+from tools.common import scan_videos, batch_process, print_summary
 from tools.interpolation.ffmpeg_minterp import interpolate_video_ffmpeg
 
 

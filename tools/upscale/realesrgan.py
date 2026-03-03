@@ -15,18 +15,15 @@ Real-ESRGAN 视频超分辨率模块
   python tools/upscale/realesrgan.py video.mp4 --scale 4
   python tools/upscale/realesrgan.py video.mp4 --target-width 1920 --target-height 1080
 """
-import shutil
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
-import cv2
-import numpy as np
 
 
 from config import OUTPUT_UPSCALE, UPSCALE_FACTOR, FFMPEG_BIN
-from tools.common import logger, VideoFrameProcessor, generate_output_name, get_video_info, orient_resolution
+from tools.common import logger, generate_output_name, get_video_info, orient_resolution
 
 
 # realesrgan-ncnn-vulkan 二进制路径 (项目 bin/ 目录)

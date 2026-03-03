@@ -9,14 +9,13 @@ x-tools 交互式终端入口 (TUI)
 import shutil
 import sys
 from pathlib import Path
-from typing import Callable
 
 from InquirerPy import inquirer
 from InquirerPy.base.control import Choice
 from InquirerPy.separator import Separator
 
-from config import INPUT_DIR, UPSCALE_FACTOR, INTERPOLATION_TARGET_FPS, ADD_WATERMARK_TEXT, ensure_dirs
-from tools.common import scan_videos, scan_media, logger
+from config import INPUT_DIR, FFMPEG_BIN, ADD_WATERMARK_TEXT, ensure_dirs
+from tools.common import scan_videos, scan_media
 
 # 引入各个批量处理去水、超分等函数
 from tools.watermark.batch import batch_remove_watermark_opencv, batch_remove_watermark_lama
@@ -29,7 +28,6 @@ from tools.mediainfo.probe import get_detailed_info, display_info, display_batch
 from tools.filter.batch import batch_filter
 from tools.filter.ffmpeg_filter import FILTER_PRESETS
 from tools.crop.batch import batch_crop
-from tools.crop.ffmpeg_crop import ASPECT_RATIOS
 
 
 def get_input_videos() -> list[Path] | None:
@@ -38,7 +36,7 @@ def get_input_videos() -> list[Path] | None:
     mode = inquirer.select(
         message="选择输入源:",
         choices=[
-            Choice("scan", f"📂 扫描 input/ 目录"),
+            Choice("scan", "📂 扫描 input/ 目录"),
             Choice("path", "📄 指定单个文件路径"),
             Choice("manual_dir", "📁 指定其他目录"),
             Separator(),
@@ -82,7 +80,7 @@ def get_input_media() -> list[Path] | None:
     mode = inquirer.select(
         message="选择输入源:",
         choices=[
-            Choice("scan", f"📂 扫描 input/ 目录"),
+            Choice("scan", "📂 扫描 input/ 目录"),
             Choice("path", "📄 指定单个文件路径"),
             Choice("manual_dir", "📁 指定其他目录"),
             Separator(),
@@ -554,8 +552,9 @@ def menu_filter(media: list[Path]):
 
 def _check_ffmpeg():
     """检测 FFmpeg 是否可用"""
-    if not shutil.which("ffmpeg"):
+    if not shutil.which(FFMPEG_BIN):
         print("❌ 未检测到 FFmpeg, 请先安装:")
+        print(f"   当前配置 FFMPEG_BIN = {FFMPEG_BIN!r}")
         print("   macOS:   brew install ffmpeg")
         print("   Ubuntu:  sudo apt install ffmpeg")
         print("   Windows: https://ffmpeg.org/download.html")
@@ -566,7 +565,7 @@ def main():
     _check_ffmpeg()
     ensure_dirs()
 
-    print("\n🧰 X-TOOLS 视频处理工具箱 v0.1\n")
+    print("\n🧰 X-TOOLS 视频处理工具箱 v0.2.0\n")
 
     while True:
         module = inquirer.select(

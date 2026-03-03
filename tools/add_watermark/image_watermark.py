@@ -17,7 +17,6 @@
 依赖:
   pip install Pillow
 """
-import sys
 from pathlib import Path
 
 import cv2

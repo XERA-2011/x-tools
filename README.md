@@ -4,7 +4,7 @@
 
 **核心功能**: 去水印 (OpenCV/LaMA 深度学习)、高清重置 (Real-ESRGAN/FFmpeg)、帧数补充 (RIFE)、格式转换 (FFmpeg)。
 
-## � 快速开始 (30秒上手)
+## 🚀 快速开始 (30秒上手)
 
 **1. 安装 FFmpeg**
 

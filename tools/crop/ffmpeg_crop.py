@@ -183,7 +183,7 @@ if __name__ == "__main__":
         crf=args.crf,
     )
     if result.get("skipped"):
-        print(f"\n⏭️  已是目标比例, 无需裁切")
+        print("\n⏭️  已是目标比例, 无需裁切")
     else:
         print(f"\n✅ 裁切完成: {result['src_size']} → {result['crop_size']}")
         print(f"   输出: {result['output']} ({result['size_mb']} MB)")

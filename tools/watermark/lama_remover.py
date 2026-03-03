@@ -13,6 +13,7 @@ LaMA 深度学习去水印模块
 依赖:
   pip install torch torchvision
 """
+import importlib.util
 import urllib.request
 import os
 import sys
@@ -24,16 +25,11 @@ import numpy as np
 
 from config import OUTPUT_WATERMARK
 from tools.common import logger, VideoFrameProcessor, generate_output_name, load_or_create_mask, parse_region
-from tools.watermark.opencv_inpaint import create_mask_from_regions
 
 
 def _check_torch():
     """检查 torch 是否可用"""
-    try:
-        import torch
-        return True
-    except ImportError:
-        return False
+    return importlib.util.find_spec("torch") is not None
 
 
 def _download_model(model_path: Path):
