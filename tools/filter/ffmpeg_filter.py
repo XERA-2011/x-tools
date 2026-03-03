@@ -71,6 +71,22 @@ FILTER_PRESETS = {
         "vf": "eq=contrast=1.5:saturation=1.15:brightness=-0.03,"
               "curves=m='0/0 0.25/0.15 0.75/0.85 1/1'",
     },
+    "leica_m3": {
+        "name": "📸 徕卡 M3",
+        "desc": "经典胶片质感, 温暖中间调, 柔和褪色, 浓郁暗部",
+        "vf": "eq=contrast=1.1:brightness=0.02:saturation=0.8,"
+              "colorbalance=rs=0.1:gs=0.04:bs=-0.06:rm=0.06:gm=0.03:bm=-0.03:rh=0.03:gh=0.01:bh=-0.02,"
+              "curves=m='0/0.04 0.15/0.12 0.5/0.5 0.85/0.83 1/0.93',"
+              "vignette=PI/3.5",
+    },
+    "leica_m9": {
+        "name": "📷 徕卡 M9",
+        "desc": "CCD 传感器色彩, 鲜艳红绿, 通透细腻, 微暖色温",
+        "vf": "eq=contrast=1.15:brightness=-0.01:saturation=1.05,"
+              "colorbalance=rs=0.08:gs=0.02:bs=-0.04:rm=0.04:gm=0.03:bm=-0.02,"
+              "curves=r='0/0 0.5/0.53 1/1':g='0/0 0.5/0.52 1/1':b='0/0 0.5/0.46 1/0.95',"
+              "vignette=PI/5",
+    },
 }
 
 
