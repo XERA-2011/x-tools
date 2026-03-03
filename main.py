@@ -346,40 +346,18 @@ def menu_add_watermark(media: list[Path]):
             print("❌ 水印文字不能为空")
             return
 
-        pos_type = inquirer.select(
-            message="水印位置:",
+        position = inquirer.select(
+            message="水印位置 (居中靠下):",
             choices=[
-                Choice("bottom-center", "⬇️  居中靠下"),
-                Choice("custom", "🎯 自定义位置"),
+                Choice("bottom-center-5", "1/5 (距底较远)"),
+                Choice("bottom-center-6", "1/6"),
+                Choice("bottom-center-7", "1/7 (距底较近)"),
             ],
-            default="bottom-center",
+            default="bottom-center-6",
         ).execute()
 
-        if pos_type == "bottom-center":
-            position = inquirer.select(
-                message="距底部占比:",
-                choices=[
-                    Choice("bottom-center-5", "1/5 (距底较远)"),
-                    Choice("bottom-center-6", "1/6"),
-                    Choice("bottom-center-7", "1/7 (距底较近)"),
-                ],
-                default="bottom-center-7",
-            ).execute()
-        else:
-            position = inquirer.select(
-                message="选择位置:",
-                choices=[
-                    Choice("bottom-right", "↘️  右下角"),
-                    Choice("bottom-left", "↙️  左下角"),
-                    Choice("top-right", "↗️  右上角"),
-                    Choice("top-left", "↖️  左上角"),
-                    Choice("center", "⊕  居中"),
-                ],
-                default="bottom-right",
-            ).execute()
-
-        font_size = int(inquirer.number(message="字号:", default=50).execute())
-        opacity = float(inquirer.text(message="透明度 (0.0~1.0):", default="0.9").execute())
+        font_size = int(inquirer.number(message="字号:", default=60).execute())
+        opacity = float(inquirer.text(message="透明度 (0.0~1.0):", default="0.6").execute())
 
         blend_mode = inquirer.select(
             message="混合模式:",
@@ -412,37 +390,15 @@ def menu_add_watermark(media: list[Path]):
             validate=lambda x: Path(x).is_file(),
         ).execute()
 
-        pos_type = inquirer.select(
-            message="水印位置:",
+        position = inquirer.select(
+            message="水印位置 (居中靠下):",
             choices=[
-                Choice("bottom-center", "⬇️  居中靠下"),
-                Choice("custom", "🎯 自定义位置"),
+                Choice("bottom-center-5", "1/5 (距底较远)"),
+                Choice("bottom-center-6", "1/6"),
+                Choice("bottom-center-7", "1/7 (距底较近)"),
             ],
-            default="bottom-center",
+            default="bottom-center-7",
         ).execute()
-
-        if pos_type == "bottom-center":
-            position = inquirer.select(
-                message="距底部占比:",
-                choices=[
-                    Choice("bottom-center-5", "1/5 (距底较远)"),
-                    Choice("bottom-center-6", "1/6"),
-                    Choice("bottom-center-7", "1/7 (距底较近)"),
-                ],
-                default="bottom-center-7",
-            ).execute()
-        else:
-            position = inquirer.select(
-                message="选择位置:",
-                choices=[
-                    Choice("bottom-right", "↘️  右下角"),
-                    Choice("bottom-left", "↙️  左下角"),
-                    Choice("top-right", "↗️  右上角"),
-                    Choice("top-left", "↖️  左上角"),
-                    Choice("center", "⊕  居中"),
-                ],
-                default="bottom-right",
-            ).execute()
 
         scale = float(inquirer.text(message="Logo 大小比例 (0.0~1.0):", default="0.15").execute())
         opacity = float(inquirer.text(message="透明度 (0.0~1.0):", default="0.7").execute())
