@@ -30,10 +30,9 @@ from tools.filter.ffmpeg_filter import FILTER_PRESETS
 from tools.crop.batch import batch_crop
 
 
-def get_input_videos() -> list[Path] | None:
-    """获取待处理视频列表, 返回 None 表示用户选择返回"""
-    # 选项: 扫描 input/ 目录 或 输入路径
-    mode = inquirer.select(
+def _prompt_input_mode() -> str:
+    """统一输入源选择菜单"""
+    return inquirer.select(
         message="选择输入源:",
         choices=[
             Choice("scan", "📂 扫描 input/ 目录"),
@@ -43,6 +42,23 @@ def get_input_videos() -> list[Path] | None:
             Choice("back", "⬅️  返回上一级"),
         ],
     ).execute()
+
+
+def _prompt_directory(recursive_default: bool = False) -> tuple[Path, bool]:
+    """统一目录输入与递归选项"""
+    path_str = inquirer.filepath(
+        message="输入目录路径:",
+        default=str(INPUT_DIR),
+        validate=lambda x: Path(x).is_dir(),
+        only_directories=True,
+    ).execute()
+    recursive = inquirer.confirm(message="是否递归扫描子目录?", default=recursive_default).execute()
+    return Path(path_str), recursive
+
+
+def get_input_videos() -> list[Path] | None:
+    """获取待处理视频列表, 返回 None 表示用户选择返回"""
+    mode = _prompt_input_mode()
 
     if mode == "back":
         return None
@@ -52,41 +68,26 @@ def get_input_videos() -> list[Path] | None:
         videos = scan_videos(INPUT_DIR, recursive=recursive)
         print(f"扫描到 {len(videos)} 个视频")
         return videos
-    
-    elif mode == "path":
+
+    if mode == "path":
         path_str = inquirer.filepath(
             message="输入视频文件路径:",
             validate=lambda x: Path(x).is_file(),
         ).execute()
         return [Path(path_str)]
-    
-    elif mode == "manual_dir":
-        path_str = inquirer.filepath(
-            message="输入目录路径:",
-            default=str(INPUT_DIR),
-            validate=lambda x: Path(x).is_dir(),
-            only_directories=True,
-        ).execute()
-        recursive = inquirer.confirm(message="是否递归扫描子目录?", default=False).execute()
-        videos = scan_videos(path_str, recursive=recursive)
+
+    if mode == "manual_dir":
+        directory, recursive = _prompt_directory()
+        videos = scan_videos(directory, recursive=recursive)
         print(f"扫描到 {len(videos)} 个视频")
         return videos
-    
+
     return []
 
 
 def get_input_media() -> list[Path] | None:
     """获取待处理媒体文件列表 (视频 + 图片), 返回 None 表示用户选择返回"""
-    mode = inquirer.select(
-        message="选择输入源:",
-        choices=[
-            Choice("scan", "📂 扫描 input/ 目录"),
-            Choice("path", "📄 指定单个文件路径"),
-            Choice("manual_dir", "📁 指定其他目录"),
-            Separator(),
-            Choice("back", "⬅️  返回上一级"),
-        ],
-    ).execute()
+    mode = _prompt_input_mode()
 
     if mode == "back":
         return None
@@ -97,32 +98,22 @@ def get_input_media() -> list[Path] | None:
         files = images + videos
         print(f"扫描到 {len(images)} 个图片, {len(videos)} 个视频")
         return files
-    
-    elif mode == "path":
+
+    if mode == "path":
         path_str = inquirer.filepath(
             message="输入文件路径:",
             validate=lambda x: Path(x).is_file(),
         ).execute()
         return [Path(path_str)]
-    
-    elif mode == "manual_dir":
-        path_str = inquirer.filepath(
-            message="输入目录路径:",
-            default=str(INPUT_DIR),
-            validate=lambda x: Path(x).is_dir(),
-            only_directories=True,
-        ).execute()
-        recursive = inquirer.confirm(message="是否递归扫描子目录?", default=False).execute()
-        videos, images = scan_media(path_str, recursive=recursive)
+
+    if mode == "manual_dir":
+        directory, recursive = _prompt_directory()
+        videos, images = scan_media(directory, recursive=recursive)
         files = images + videos
         print(f"扫描到 {len(images)} 个图片, {len(videos)} 个视频")
         return files
-    
+
     return []
-
-
-
-
 
 def menu_watermark(videos: list[Path]):
     """去水印菜单"""
