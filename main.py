@@ -28,7 +28,7 @@ from tools.mediainfo.probe import get_detailed_info, display_info, display_batch
 from tools.filter.batch import batch_filter
 from tools.filter.ffmpeg_filter import FILTER_PRESETS
 from tools.crop.batch import batch_crop
-from tools.concat.ffmpeg_concat import concat_videos, get_available_music
+from tools.concat.ffmpeg_concat import concat_videos, get_available_music, TRANSITION_PRESETS
 
 
 def _prompt_input_mode() -> str:
@@ -582,12 +582,28 @@ def menu_concat(videos: list[Path]):
         music_volume = float(inquirer.text(message="音乐音量 (0.0~1.0):", default="0.3").execute())
         keep_audio = inquirer.confirm(message="是否保留原视频声音 (混合)?", default=False).execute()
 
+    # 过渡效果
+    transition_choices = [
+        Choice(key, preset["name"]) for key, preset in TRANSITION_PRESETS.items()
+    ]
+    transition = inquirer.select(
+        message="过渡效果:",
+        choices=transition_choices,
+        default="fade",
+    ).execute()
+
+    transition_duration = 1.0
+    if transition != "none":
+        transition_duration = float(inquirer.text(message="过渡时长 (秒):", default="1").execute())
+
     if inquirer.confirm(message=f"确认拼接 {len(videos)} 个视频?", default=True).execute():
         concat_videos(
             video_paths=videos,
             music_path=music_path,
             music_volume=music_volume,
             keep_original_audio=keep_audio,
+            transition=transition,
+            transition_duration=transition_duration,
         )
 
 

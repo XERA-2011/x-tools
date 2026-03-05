@@ -32,6 +32,14 @@ def get_available_music() -> list[Path]:
     return sorted(files, key=lambda f: f.name)
 
 
+# 过渡效果预设
+TRANSITION_PRESETS = {
+    "none": {"name": "⏩ 无过渡 (直接拼接)", "xfade": None},
+    "fade": {"name": "🌑 淡入淡出", "xfade": "fade"},
+    "dissolve": {"name": "✨ 交叉溶解", "xfade": "dissolve"},
+}
+
+
 def concat_videos(
     video_paths: list[str | Path],
     output_path: str | Path | None = None,
@@ -39,6 +47,8 @@ def concat_videos(
     music_volume: float = 0.3,
     keep_original_audio: bool = False,
     crf: int = 18,
+    transition: str = "none",
+    transition_duration: float = 1.0,
 ) -> dict:
     """
     拼接多个视频为一个
@@ -103,9 +113,9 @@ def concat_videos(
         cmd += ["-i", str(music_path)]
 
     # 构建 filter_complex
-    # 策略: 始终只 concat 视频流 (避免部分视频无音频导致错误)
-    # 音频单独处理: BGM 替换 / BGM+原声混合 / 仅原声拼接
     filter_parts = []
+    xfade_type = TRANSITION_PRESETS.get(transition, {}).get("xfade")
+    td = transition_duration
 
     for i in range(n):
         # scale + pad 确保所有视频尺寸一致, setsar=1 统一像素比
@@ -115,28 +125,60 @@ def concat_videos(
             f"setsar=1[v{i}]"
         )
 
-    # concat 仅视频流
-    video_streams = "".join(f"[v{i}]" for i in range(n))
-    filter_parts.append(f"{video_streams}concat=n={n}:v=1:a=0[outv]")
+    if xfade_type and n >= 2:
+        # ========== xfade 过渡模式 ==========
+        # 获取每个视频的时长
+        durations = []
+        for vp in video_paths:
+            info = get_video_info(str(vp))
+            durations.append(info.get("duration", 5.0))
 
-    if music_path is not None and keep_original_audio:
-        # 混合模式: 拼接原声 + BGM
-        # 拼接各视频音频流
-        audio_concat_parts = "".join(f"[{i}:a]" for i in range(n))
-        filter_parts.append(f"{audio_concat_parts}concat=n={n}:v=0:a=1[orig_a]")
-        filter_parts.append(f"[{music_input_idx}:a]volume={music_volume}[bgm]")
-        filter_parts.append("[orig_a][bgm]amix=inputs=2:duration=first:dropout_transition=2[outa]")
-        cmd += ["-filter_complex", ";".join(filter_parts)]
-        cmd += ["-map", "[outv]", "-map", "[outa]"]
-    elif music_path is not None:
-        # 替换模式: 仅用 BGM
-        filter_parts.append(f"[{music_input_idx}:a]volume={music_volume}[outa]")
-        cmd += ["-filter_complex", ";".join(filter_parts)]
-        cmd += ["-map", "[outv]", "-map", "[outa]"]
+        # 链式 xfade: [v0][v1]xfade → [xf0], [xf0][v2]xfade → [xf1], ...
+        # offset = 累计时长 - 累计过渡时长
+        cumulative_offset = durations[0] - td
+        prev_label = "v0"
+
+        for i in range(1, n):
+            out_label = "outv" if i == n - 1 else f"xf{i-1}"
+            filter_parts.append(
+                f"[{prev_label}][v{i}]xfade=transition={xfade_type}:"
+                f"duration={td}:offset={cumulative_offset:.3f}[{out_label}]"
+            )
+            prev_label = out_label
+            if i < n - 1:
+                cumulative_offset += durations[i] - td
+
+        # 音频: 链式 acrossfade
+        prev_a = "0:a"
+        for i in range(1, n):
+            out_a = "outa" if i == n - 1 else f"af{i-1}"
+            filter_parts.append(
+                f"[{prev_a}][{i}:a]acrossfade=d={td}:c1=tri:c2=tri[{out_a}]"
+            )
+            prev_a = out_a
     else:
-        # 无 BGM: 尝试拼接原声, 失败则静音输出
-        audio_concat_parts = "".join(f"[{i}:a]" for i in range(n))
-        filter_parts.append(f"{audio_concat_parts}concat=n={n}:v=0:a=1[outa]")
+        # ========== 无过渡: 简单 concat ==========
+        video_streams = "".join(f"[v{i}]" for i in range(n))
+        filter_parts.append(f"{video_streams}concat=n={n}:v=1:a=0[outv]")
+
+        # 音频也 concat
+        audio_streams = "".join(f"[{i}:a]" for i in range(n))
+        filter_parts.append(f"{audio_streams}concat=n={n}:v=0:a=1[outa]")
+
+    # 背景音乐处理
+    if music_path is not None and keep_original_audio:
+        # 混合: 原声 + BGM
+        filter_parts.append(f"[{music_input_idx}:a]volume={music_volume}[bgm]")
+        filter_parts.append("[outa][bgm]amix=inputs=2:duration=first:dropout_transition=2[final_a]")
+        cmd += ["-filter_complex", ";".join(filter_parts)]
+        cmd += ["-map", "[outv]", "-map", "[final_a]"]
+    elif music_path is not None:
+        # 替换: 仅用 BGM
+        filter_parts.append(f"[{music_input_idx}:a]volume={music_volume}[bgm_a]")
+        cmd += ["-filter_complex", ";".join(filter_parts)]
+        cmd += ["-map", "[outv]", "-map", "[bgm_a]"]
+    else:
+        # 无 BGM: 用拼接后的原声
         cmd += ["-filter_complex", ";".join(filter_parts)]
         cmd += ["-map", "[outv]", "-map", "[outa]"]
 
