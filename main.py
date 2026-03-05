@@ -28,6 +28,7 @@ from tools.mediainfo.probe import get_detailed_info, display_info, display_batch
 from tools.filter.batch import batch_filter
 from tools.filter.ffmpeg_filter import FILTER_PRESETS
 from tools.crop.batch import batch_crop
+from tools.concat.ffmpeg_concat import concat_videos, get_available_music
 
 
 def _prompt_input_mode() -> str:
@@ -542,6 +543,54 @@ def menu_filter(media: list[Path]):
         batch_filter(files=media, preset=preset)
 
 
+def menu_concat(videos: list[Path]):
+    """拼接视频菜单"""
+    print(f"\n将按以下顺序拼接 {len(videos)} 个视频:")
+    for i, v in enumerate(videos, 1):
+        print(f"  {i}. {v.name}")
+    print()
+
+    # 背景音乐
+    add_bgm = inquirer.confirm(message="是否添加背景音乐?", default=False).execute()
+
+    music_path = None
+    music_volume = 0.3
+    keep_audio = False
+
+    if add_bgm:
+        available_music = get_available_music()
+
+        music_choices = []
+        if available_music:
+            for m in available_music:
+                music_choices.append(Choice(str(m), f"🎵 {m.stem}"))
+        music_choices.append(Choice("custom", "📂 指定音乐文件路径"))
+
+        music_choice = inquirer.select(
+            message="选择背景音乐:",
+            choices=music_choices,
+        ).execute()
+
+        if music_choice == "custom":
+            music_path = inquirer.filepath(
+                message="音乐文件路径:",
+                validate=lambda x: Path(x).is_file(),
+            ).execute()
+        else:
+            music_path = music_choice
+
+        music_volume = float(inquirer.text(message="音乐音量 (0.0~1.0):", default="0.3").execute())
+        keep_audio = inquirer.confirm(message="是否保留原视频声音 (混合)?", default=False).execute()
+
+    if inquirer.confirm(message=f"确认拼接 {len(videos)} 个视频?", default=True).execute():
+        concat_videos(
+            video_paths=videos,
+            music_path=music_path,
+            music_volume=music_volume,
+            keep_original_audio=keep_audio,
+        )
+
+
 def _check_ffmpeg():
     """检测 FFmpeg 是否可用"""
     if not shutil.which(FFMPEG_BIN):
@@ -570,6 +619,7 @@ def main():
                 Choice("convert", "🔄 格式转换 (Convert)"),
                 Choice("filter", "🎨 滤镜效果 (Filter)"),
                 Choice("crop", "✂️  裁切比例 (Crop)"),
+                Choice("concat", "🎬 拼接视频 (Concat)"),
                 Choice("mediainfo", "📊 查看信息 (Media Info)"),
                 Separator(),
                 Choice("exit", "❌ 退出"),
@@ -613,6 +663,8 @@ def main():
                 menu_upscale(videos)
             elif module == "interpolate":
                 menu_interpolate(videos)
+            elif module == "concat":
+                menu_concat(videos)
 
         print()
         if not inquirer.confirm(message="继续其他操作?", default=True).execute():

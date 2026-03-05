@@ -18,6 +18,10 @@ OUTPUT_INTERPOLATION = OUTPUT_DIR / "interpolation"
 OUTPUT_CONVERT = OUTPUT_DIR / "convert"
 OUTPUT_FILTER = OUTPUT_DIR / "filter"
 OUTPUT_CROP = OUTPUT_DIR / "crop"
+OUTPUT_CONCAT = OUTPUT_DIR / "concat"
+
+# 音乐目录
+MUSIC_DIR = PROJECT_ROOT / "music"
 
 # ============================================================
 # 支持的视频格式
@@ -59,7 +63,8 @@ def ensure_dirs():
     """确保所有必要目录存在"""
     for d in [INPUT_DIR, OUTPUT_WATERMARK,
               OUTPUT_ADD_WATERMARK, OUTPUT_UPSCALE, OUTPUT_INTERPOLATION,
-              OUTPUT_CONVERT, OUTPUT_FILTER, OUTPUT_CROP]:
+              OUTPUT_CONVERT, OUTPUT_FILTER, OUTPUT_CROP, OUTPUT_CONCAT,
+              MUSIC_DIR]:
         d.mkdir(parents=True, exist_ok=True)
 
 

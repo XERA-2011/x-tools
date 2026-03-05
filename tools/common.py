@@ -374,12 +374,24 @@ def merge_audio(original_video: Path, processed_video: Path, output_path: Path):
     OpenCV VideoWriter 使用 mp4v (MPEG-4 Part 2) 编码临时文件，
     必须通过 FFmpeg 重编码为 H.264 (libx264)，否则输出的 MP4 在
     微信视频号等平台导入时会因编解码器不兼容而失败。
+
+    使用原视频码率编码, 避免文件膨胀。
     """
+    # 获取原视频码率, 匹配输出大小
+    orig_info = get_video_info(str(original_video))
+    orig_bitrate = orig_info.get("bitrate", 0)
+
+    # 构建编码参数: 优先匹配原始码率, 否则用 CRF=23 (FFmpeg 默认)
+    if orig_bitrate > 0:
+        encode_opts = ["-c:v", "libx264", "-b:v", str(orig_bitrate), "-preset", "fast"]
+    else:
+        encode_opts = ["-c:v", "libx264", "-crf", "23", "-preset", "fast"]
+
     cmd = [
         FFMPEG_BIN, "-y",
         "-i", str(processed_video),    # 修复后的视频 (无音频, mp4v)
         "-i", str(original_video),     # 原视频 (取音频)
-        "-c:v", "libx264", "-crf", "18", "-preset", "fast",  # 重编码为 H.264，确保兼容性
+        *encode_opts,
         "-c:a", "aac", "-b:a", "192k",
         "-map", "0:v:0",              # 用处理后的视频流
         "-map", "1:a:0?",             # 用原视频的音频流 (可选, 原视频可能无音频)
@@ -394,7 +406,7 @@ def merge_audio(original_video: Path, processed_video: Path, output_path: Path):
         cmd_fallback = [
             FFMPEG_BIN, "-y",
             "-i", str(processed_video),
-            "-c:v", "libx264", "-crf", "18", "-preset", "fast",
+            *encode_opts,
             "-an",
             "-movflags", "+faststart",
             str(output_path),
