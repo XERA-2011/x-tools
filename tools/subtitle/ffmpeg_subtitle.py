@@ -33,16 +33,51 @@ SUBTITLE_STYLES = {
 }
 
 
-def _srt_to_ass(srt_path: Path, ass_path: Path, style_line: str):
+def _srt_to_ass(srt_path: Path, ass_path: Path, style_line: str, width: int = 1920, height: int = 1080):
     """将 SRT 转为 ASS 格式 (内嵌样式)"""
     import re
+
+    # 动态缩放 ASS 样式参数，以 1080p 为基准
+    # 扩大基础字号，方便手机竖屏观看
+    base_scale = height / 1080.0
+    
+    style_parts = style_line.split(":")
+    if len(style_parts) == 2:
+        name = style_parts[0]
+        values = style_parts[1].split(",")
+        if len(values) >= 23:
+            # FontSize at index 2 (默认 22 偏小，改基准为 45)
+            fontsize = float(values[2])
+            new_fontsize = max(int(45 * base_scale), 20)
+            values[2] = str(new_fontsize)
+            
+            # Outline at 16, Shadow at 17
+            values[16] = str(int(float(values[16]) * base_scale * 1.5))
+            values[17] = str(int(float(values[17]) * base_scale * 1.5))
+            
+            # MarginL/R at 19, 20
+            margin_lr = int(width * 0.05)
+            values[19] = str(margin_lr)
+            values[20] = str(margin_lr)
+            
+            # MarginV at 21 (判断竖屏还是横屏，提升字幕高度)
+            is_vertical = height > width
+            if is_vertical:
+                # 竖屏视频（例如抖音、视频号），将底部高度提升到 20%，避开底部 UI
+                target_margin_v = int(height * 0.20)
+            else:
+                target_margin_v = int(height * 0.08)
+            values[21] = str(target_margin_v)
+            
+            style_line = f"{name}:{','.join(values)}"
+
 
     # ASS 文件头
     header = f"""[Script Info]
 Title: x-tools subtitles
 ScriptType: v4.00+
-PlayResX: 1920
-PlayResY: 1080
+PlayResX: {width}
+PlayResY: {height}
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
@@ -105,6 +140,12 @@ def burn_subtitles(
     if not subtitle_path.is_file():
         raise FileNotFoundError(f"字幕文件不存在: {subtitle_path}")
 
+    # 获取原视频维度和码率
+    orig_info = get_video_info(str(video_path))
+    v_width = orig_info.get("width", 1920)
+    v_height = orig_info.get("height", 1080)
+    orig_bitrate = orig_info.get("bitrate", 0)
+
     # 输出路径
     OUTPUT_SUBTITLE.mkdir(parents=True, exist_ok=True)
     if output_path is None:
@@ -120,16 +161,17 @@ def burn_subtitles(
     import tempfile
     tmp_dir = tempfile.mkdtemp()
     tmp_ass = Path(tmp_dir) / "sub.ass"
-    _srt_to_ass(subtitle_path, tmp_ass, style_line)
+    _srt_to_ass(subtitle_path, tmp_ass, style_line, width=v_width, height=v_height)
 
-    # 必须转义: \ 和 : (尤其是 Windows 下的盘符和路径, Mac/Linux 偶尔也会被误判)
-    # 对于 subprocess + FFmpeg filter string，最佳方案是直接用绝对路径转义后不带引号
-    ass_escaped = str(tmp_ass.resolve()).replace("\\", "/").replace(":", "\\:")
+    # 在 macOS/Linux 的 subprocess.run(list_args) 中
+    # 当传递单个滤镜如 `ass=/path/to/sub.ass` 时，如果在路径两边加了单引号，
+    # ffmpeg 会把单引号也当做路径的一部分去寻找，导致 `No option name near` 报错。
+    # 因为我们的临时路径 (如 /var/folders/...) 肯定没有空格，
+    # 最安全的方式是直接传入带有转义反斜杠的**裸路径**，不加任何引号。
+    ass_escaped = str(tmp_ass.resolve()).replace("\\", "/") # 仅限 Windows 换斜杠
+    # 彻底去掉路径周围的引号
     vf = f"ass={ass_escaped}"
 
-    # 获取原视频码率
-    orig_info = get_video_info(str(video_path))
-    orig_bitrate = orig_info.get("bitrate", 0)
     if orig_bitrate > 0:
         encode_opts = ["-b:v", str(orig_bitrate)]
     else:

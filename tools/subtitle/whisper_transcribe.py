@@ -48,13 +48,26 @@ def _format_timestamp(seconds: float) -> str:
     return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
 
 
-def _segments_to_srt(segments: list) -> str:
+def _segments_to_srt(segments: list, language: str = "") -> str:
     """将 Whisper segments 转为 SRT 格式文本"""
+    # 如果语言是中文，尝试使用 zhconv 转换为简体
+    use_zhconv = False
+    if language in ["zh", "chinese"]:
+        try:
+            import zhconv
+            use_zhconv = True
+        except ImportError:
+            pass
+
     lines = []
     for i, seg in enumerate(segments, 1):
         start = _format_timestamp(seg["start"])
         end = _format_timestamp(seg["end"])
         text = seg["text"].strip()
+        
+        if use_zhconv and text:
+            text = zhconv.convert(text, "zh-cn")
+            
         if text:
             lines.append(f"{i}\n{start} --> {end}\n{text}\n")
     return "\n".join(lines)
@@ -118,7 +131,7 @@ def transcribe_video(
         # 4. 生成 SRT
         detected_lang = result.get("language", "unknown")
         segments = result.get("segments", [])
-        srt_content = _segments_to_srt(segments)
+        srt_content = _segments_to_srt(segments, language=detected_lang)
 
         output_path.write_text(srt_content, encoding="utf-8")
 

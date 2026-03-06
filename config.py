@@ -33,8 +33,23 @@ IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tiff"}
 # ============================================================
 # FFmpeg 配置
 # ============================================================
-FFMPEG_BIN = "ffmpeg"      # 如果不在 PATH 中，改为绝对路径
-FFPROBE_BIN = "ffprobe"
+import os
+import shutil
+
+# 尝试寻找更全功能的 ffmpeg-full (macOS Homebrew keg-only), 因为标准 ffmpeg(8.0+) 不包含 libass
+_ffmpeg_full = Path("/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg")
+_ffprobe_full = Path("/opt/homebrew/opt/ffmpeg-full/bin/ffprobe")
+
+if _ffmpeg_full.exists():
+    FFMPEG_BIN = str(_ffmpeg_full)
+    FFPROBE_BIN = str(_ffprobe_full) if _ffprobe_full.exists() else "ffprobe"
+    # 将 ffmpeg-full 的路径加入到环境变量 PATH 的最前面，
+    # 以便第三方库（如 whisper 内部调用的 ffmpeg）能够找到并使用它。
+    _full_bin_dir = str(_ffmpeg_full.parent)
+    os.environ["PATH"] = f"{_full_bin_dir}{os.pathsep}{os.environ.get('PATH', '')}"
+else:
+    FFMPEG_BIN = shutil.which("ffmpeg") or "ffmpeg"
+    FFPROBE_BIN = shutil.which("ffprobe") or "ffprobe"
 
 # ============================================================
 # 默认参数
