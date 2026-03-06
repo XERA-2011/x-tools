@@ -611,6 +611,10 @@ def menu_concat(videos: list[Path]):
 
 def menu_subtitle(media: list[Path]):
     """字幕菜单"""
+    from tools.subtitle.whisper_transcribe import WHISPER_MODELS, transcribe_video
+    from tools.subtitle.ffmpeg_subtitle import SUBTITLE_STYLES, burn_subtitles
+    from tools.subtitle.tts_dubbing import TTS_VOICES, dub_video_with_tts
+
     # 只处理视频
     videos = [f for f in media if f.suffix.lower() in {".mp4", ".avi", ".mov", ".mkv", ".flv", ".wmv", ".webm", ".m4v"}]
     if not videos:
@@ -623,6 +627,7 @@ def menu_subtitle(media: list[Path]):
             Choice("auto", "🎙️ 自动生成字幕 (AI 语音识别)"),
             Choice("burn", "🔥 烧录字幕 (导入 .srt)"),
             Choice("oneclick", "⚡ 一键字幕 (识别 + 烧录)"),
+            Choice("tts", "🎤 视频配音 (基于字幕生成语音)"),
         ],
         default="oneclick",
     ).execute()
@@ -668,6 +673,22 @@ def menu_subtitle(media: list[Path]):
             default="default",
         ).execute()
 
+    if mode == "tts":
+        # 配音模式: 需要指定 .srt 文件并且选择发音人
+        srt_path = inquirer.filepath(
+            message="SRT 字幕文件路径 (基于此文件生成配音):",
+            validate=lambda x: Path(x).is_file() and Path(x).suffix.lower() == ".srt",
+        ).execute()
+
+        voice_choices = [
+            Choice(key, info["name"]) for key, info in TTS_VOICES.items()
+        ]
+        voice_key = inquirer.select(
+            message="选择配音角色:",
+            choices=voice_choices,
+            default="xiaoxiao",
+        ).execute()
+
     # 执行
     for v in videos:
         print(f"\n📹 处理: {v.name}")
@@ -684,6 +705,10 @@ def menu_subtitle(media: list[Path]):
             srt_file = result["output"]
             # 再烧录
             burn_subtitles(v, subtitle_path=srt_file, style=style)
+            
+        elif mode == "tts":
+            # 视频配音
+            dub_video_with_tts(v, srt_path=srt_path, voice_key=voice_key)
 
 
 def _check_ffmpeg():
