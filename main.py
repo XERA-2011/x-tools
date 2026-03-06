@@ -29,6 +29,8 @@ from tools.filter.batch import batch_filter
 from tools.filter.ffmpeg_filter import FILTER_PRESETS
 from tools.crop.batch import batch_crop
 from tools.concat.ffmpeg_concat import concat_videos, get_available_music, TRANSITION_PRESETS
+from tools.subtitle.whisper_transcribe import transcribe_video, WHISPER_MODELS
+from tools.subtitle.ffmpeg_subtitle import burn_subtitles, SUBTITLE_STYLES
 
 
 def _prompt_input_mode() -> str:
@@ -607,6 +609,83 @@ def menu_concat(videos: list[Path]):
         )
 
 
+def menu_subtitle(media: list[Path]):
+    """字幕菜单"""
+    # 只处理视频
+    videos = [f for f in media if f.suffix.lower() in {".mp4", ".avi", ".mov", ".mkv", ".flv", ".wmv", ".webm", ".m4v"}]
+    if not videos:
+        print("❌ 未找到视频文件")
+        return
+
+    mode = inquirer.select(
+        message="字幕功能:",
+        choices=[
+            Choice("auto", "🎙️ 自动生成字幕 (AI 语音识别)"),
+            Choice("burn", "🔥 烧录字幕 (导入 .srt)"),
+            Choice("oneclick", "⚡ 一键字幕 (识别 + 烧录)"),
+        ],
+        default="oneclick",
+    ).execute()
+
+    if mode in ("auto", "oneclick"):
+        # 选择 Whisper 模型
+        model_choices = [
+            Choice(key, f"{info['name']}  {info['size']}") for key, info in WHISPER_MODELS.items()
+        ]
+        model_name = inquirer.select(
+            message="Whisper 模型:",
+            choices=model_choices,
+            default="small",
+        ).execute()
+
+        # 语言
+        lang = inquirer.select(
+            message="语言:",
+            choices=[
+                Choice(None, "🌐 自动检测"),
+                Choice("zh", "🇨🇳 中文"),
+                Choice("en", "🇬🇧 英语"),
+                Choice("ja", "🇯🇵 日语"),
+            ],
+            default=None,
+        ).execute()
+
+    if mode == "burn":
+        # 烧录模式: 需要指定 .srt 文件
+        srt_path = inquirer.filepath(
+            message="SRT 字幕文件路径:",
+            validate=lambda x: Path(x).is_file() and Path(x).suffix.lower() == ".srt",
+        ).execute()
+
+    if mode in ("burn", "oneclick"):
+        # 选择字幕样式
+        style_choices = [
+            Choice(key, info["name"]) for key, info in SUBTITLE_STYLES.items()
+        ]
+        style = inquirer.select(
+            message="字幕样式:",
+            choices=style_choices,
+            default="default",
+        ).execute()
+
+    # 执行
+    for v in videos:
+        print(f"\n📹 处理: {v.name}")
+
+        if mode == "auto":
+            transcribe_video(v, model_name=model_name, language=lang)
+
+        elif mode == "burn":
+            burn_subtitles(v, subtitle_path=srt_path, style=style)
+
+        elif mode == "oneclick":
+            # 先识别
+            result = transcribe_video(v, model_name=model_name, language=lang)
+            srt_file = result["output"]
+            # 再烧录
+            burn_subtitles(v, subtitle_path=srt_file, style=style)
+
+
 def _check_ffmpeg():
     """检测 FFmpeg 是否可用"""
     if not shutil.which(FFMPEG_BIN):
@@ -636,6 +715,7 @@ def main():
                 Choice("filter", "🎨 滤镜效果 (Filter)"),
                 Choice("crop", "✂️  裁切比例 (Crop)"),
                 Choice("concat", "🎬 拼接视频 (Concat)"),
+                Choice("subtitle", "📝 字幕 (Subtitle)"),
                 Choice("mediainfo", "📊 查看信息 (Media Info)"),
                 Separator(),
                 Choice("exit", "❌ 退出"),
@@ -648,7 +728,7 @@ def main():
             sys.exit(0)
 
         # 获取输入
-        if module in ("add_watermark", "convert", "mediainfo", "filter", "crop"):
+        if module in ("add_watermark", "convert", "mediainfo", "filter", "crop", "subtitle"):
             media = get_input_media()
             if media is None:
                 continue
@@ -665,6 +745,8 @@ def main():
                 menu_filter(media)
             elif module == "crop":
                 menu_crop(media)
+            elif module == "subtitle":
+                menu_subtitle(media)
         else:
             videos = get_input_videos()
             if videos is None:
