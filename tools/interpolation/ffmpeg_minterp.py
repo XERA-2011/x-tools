@@ -16,7 +16,7 @@ from pathlib import Path
 
 
 from config import FFMPEG_BIN, OUTPUT_INTERPOLATION, INTERPOLATION_TARGET_FPS
-from tools.common import get_video_info, logger
+from tools.common import get_video_info, logger, run_ffmpeg_with_progress
 
 
 def interpolate_video_ffmpeg(
@@ -92,9 +92,11 @@ def interpolate_video_ffmpeg(
         f"mode={mode})"
     )
 
-    result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace')
-    if result.returncode != 0:
-        raise RuntimeError(f"FFmpeg 错误:\n{result.stderr[-500:]}")
+    duration = info.get("duration", 0)
+    run_ffmpeg_with_progress(
+        cmd, duration=duration,
+        desc=f"插帧 {video_path.name} ({orig_fps:.0f}→{target_fps:.0f}fps)",
+    )
 
     out_info = get_video_info(output_path)
     new_fps = out_info.get("fps", target_fps)

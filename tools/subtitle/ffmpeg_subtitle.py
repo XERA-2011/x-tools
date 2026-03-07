@@ -156,21 +156,19 @@ def burn_subtitles(
     # 获取样式
     style_line = SUBTITLE_STYLES.get(style, SUBTITLE_STYLES["default"])["ass_style"]
 
-    # SRT → ASS (内嵌样式), 放到临时目录
+    # SRT → ASS (内嵌样式)
+    # 将临时 ASS 文件放在视频同目录下，使用简单文件名
+    # 避免 Windows 上 FFmpeg ass 滤镜解析绝对路径时
+    # 把 C: 当作协议前缀导致路径错误的问题
     import shutil
-    import tempfile
-    tmp_dir = tempfile.mkdtemp()
-    tmp_ass = Path(tmp_dir) / "sub.ass"
+    import uuid
+    tmp_ass_name = f"_tmp_sub_{uuid.uuid4().hex[:8]}.ass"
+    tmp_ass = video_path.parent / tmp_ass_name
     _srt_to_ass(subtitle_path, tmp_ass, style_line, width=v_width, height=v_height)
 
-    # 在 macOS/Linux 的 subprocess.run(list_args) 中
-    # 当传递单个滤镜如 `ass=/path/to/sub.ass` 时，如果在路径两边加了单引号，
-    # ffmpeg 会把单引号也当做路径的一部分去寻找，导致 `No option name near` 报错。
-    # 因为我们的临时路径 (如 /var/folders/...) 肯定没有空格，
-    # 最安全的方式是直接传入带有转义反斜杠的**裸路径**，不加任何引号。
-    ass_escaped = str(tmp_ass.resolve()).replace("\\", "/") # 仅限 Windows 换斜杠
-    # 彻底去掉路径周围的引号
-    vf = f"ass={ass_escaped}"
+    # 只使用文件名 (不含目录路径)，通过 cwd 让 FFmpeg 在正确目录下找到文件
+    # 这样完全避免了 Windows 上 FFmpeg ass 滤镜把路径中的 D: 当作选项分隔符的问题
+    vf = f"ass={tmp_ass_name}"
 
     if orig_bitrate > 0:
         encode_opts = ["-b:v", str(orig_bitrate)]
@@ -179,21 +177,26 @@ def burn_subtitles(
 
     cmd = [
         FFMPEG_BIN, "-y",
-        "-i", str(video_path),
+        "-i", str(video_path.resolve()),
         "-vf", vf,
         "-c:v", "libx264", *encode_opts, "-preset", "fast",
         "-c:a", "copy",
         "-movflags", "+faststart",
-        str(output_path),
+        str(output_path.resolve()),
     ]
 
     logger.info(f"烧录字幕: {video_path.name}")
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
+        result = subprocess.run(
+            cmd, capture_output=True, text=True,
+            encoding="utf-8", errors="replace",
+            cwd=str(video_path.parent),
+        )
         if result.returncode != 0:
             raise RuntimeError(f"FFmpeg 错误:\n{result.stderr[-500:]}")
     finally:
-        shutil.rmtree(tmp_dir, ignore_errors=True)
+        if tmp_ass.exists():
+            tmp_ass.unlink()
 
     if not output_path.is_file():
         raise RuntimeError(f"输出文件未生成: {output_path}")

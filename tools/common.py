@@ -38,6 +38,95 @@ console = Console()
 
 
 # ============================================================
+# FFmpeg 实时进度条
+# ============================================================
+def run_ffmpeg_with_progress(
+    cmd: list[str],
+    duration: float,
+    desc: str = "FFmpeg 处理中",
+    **popen_kwargs,
+) -> None:
+    """
+    运行 FFmpeg 命令并显示实时进度条 + 预估剩余时间
+
+    通过解析 FFmpeg stderr 中的 time=HH:MM:SS.xx 来计算进度。
+
+    Args:
+        cmd: FFmpeg 命令列表
+        duration: 视频总时长 (秒), 用于计算百分比
+        desc: 进度条描述文字
+        **popen_kwargs: 传递给 Popen 的额外参数 (如 cwd)
+
+    Raises:
+        RuntimeError: FFmpeg 返回非零退出码
+    """
+    import re
+
+    process = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        **popen_kwargs,
+    )
+
+    # 正则匹配 FFmpeg 输出中的 time=HH:MM:SS.xx
+    time_pattern = re.compile(r"time=(\d{2}):(\d{2}):(\d{2})\.(\d{2})")
+
+    stderr_output = []
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TaskProgressColumn(),
+        TextColumn("•"),
+        TimeRemainingColumn(),
+        console=console,
+    ) as progress:
+        task_id = progress.add_task(
+            desc, total=int(duration * 100) if duration > 0 else None,
+        )
+
+        buffer = ""
+        while True:
+            # 逐字节读取 stderr (FFmpeg 用 \r 刷新进度行)
+            chunk = process.stderr.read(256)
+            if not chunk:
+                break
+
+            try:
+                text = chunk.decode("utf-8", errors="replace")
+            except Exception:
+                text = chunk.decode("latin-1", errors="replace")
+
+            stderr_output.append(text)
+            buffer += text
+
+            # 查找最后一个 time= 匹配
+            matches = list(time_pattern.finditer(buffer))
+            if matches:
+                m = matches[-1]
+                current_seconds = (
+                    int(m.group(1)) * 3600
+                    + int(m.group(2)) * 60
+                    + int(m.group(3))
+                    + int(m.group(4)) / 100
+                )
+                if duration > 0:
+                    completed = int(current_seconds * 100)
+                    progress.update(task_id, completed=min(completed, int(duration * 100)))
+
+                # 保留最后 200 字符避免 buffer 无限增长
+                buffer = buffer[-200:]
+
+        process.wait()
+
+    if process.returncode != 0:
+        full_stderr = "".join(stderr_output)
+        raise RuntimeError(f"FFmpeg 错误:\n{full_stderr[-500:]}")
+
+
+# ============================================================
 # 辅助函数: 文件名生成
 # ============================================================
 def generate_output_name(stem: str, suffix: str, tag: str = "") -> str:
