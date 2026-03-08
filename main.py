@@ -591,12 +591,53 @@ def menu_concat(videos: list[Path]):
     transition = inquirer.select(
         message="过渡效果:",
         choices=transition_choices,
-        default="fade",
+        default="none",
     ).execute()
 
     transition_duration = 1.0
     if transition != "none":
         transition_duration = float(inquirer.text(message="过渡时长 (秒):", default="1").execute())
+
+    # 首尾裁剪 (去除 AI 生成视频的静止帧)
+    trim_choice = inquirer.select(
+        message="裁剪每个视频的首尾? (去除静止帧, 使拼接更流畅)",
+        choices=[
+            Choice("0", "⏩ 不裁剪"),
+            Choice("0.2", "✂️  各裁剪 0.2 秒"),
+            Choice("0.4", "✂️  各裁剪 0.4 秒"),
+            Choice("1.0", "✂️  各裁剪 1.0 秒"),
+            Choice("custom", "✏️  自定义"),
+        ],
+        default="0",
+    ).execute()
+
+    trim_start = 0.0
+    trim_end = 0.0
+    if trim_choice == "custom":
+        trim_start = float(inquirer.text(message="裁剪开头 (秒):").execute())
+        trim_end = float(inquirer.text(message="裁剪结尾 (秒):").execute())
+    elif trim_choice != "0":
+        trim_start = trim_end = float(trim_choice)
+
+    # 音频过渡 (避免接缝爆音)
+    audio_fade_choice = inquirer.select(
+        message="是否进行音频平滑(淡入淡出), 防止拼接处突兀/破音?",
+        choices=[
+            Choice("0", "🔊 保持原声不变"),
+            Choice("1.0", "🔉 平滑过渡 1 秒 (推荐)"),
+            Choice("2.0", "🔉 平滑过渡 2 秒"),
+            Choice("custom", "✏️  自定义"),
+        ],
+        default="1.0",
+    ).execute()
+    
+    audio_fade_in = 0.0
+    audio_fade_out = 0.0
+    if audio_fade_choice == "custom":
+        audio_fade_in = float(inquirer.text(message="音频首部淡入 (秒):").execute())
+        audio_fade_out = float(inquirer.text(message="音频尾部淡出 (秒):").execute())
+    else:
+        audio_fade_in = audio_fade_out = float(audio_fade_choice)
 
     if inquirer.confirm(message=f"确认拼接 {len(videos)} 个视频?", default=True).execute():
         concat_videos(
@@ -606,6 +647,10 @@ def menu_concat(videos: list[Path]):
             keep_original_audio=keep_audio,
             transition=transition,
             transition_duration=transition_duration,
+            trim_start=trim_start,
+            trim_end=trim_end,
+            audio_fade_in=audio_fade_in,
+            audio_fade_out=audio_fade_out,
         )
 
 

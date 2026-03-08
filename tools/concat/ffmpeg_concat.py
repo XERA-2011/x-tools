@@ -49,6 +49,10 @@ def concat_videos(
     crf: int = 18,
     transition: str = "none",
     transition_duration: float = 1.0,
+    trim_start: float = 0.0,
+    trim_end: float = 0.0,
+    audio_fade_in: float = 0.0,
+    audio_fade_out: float = 0.0,
 ) -> dict:
     """
     拼接多个视频为一个
@@ -60,6 +64,10 @@ def concat_videos(
         music_volume: 背景音乐音量 (0.0~1.0, 默认 0.3)
         keep_original_audio: 是否保留原视频声音 (True=混合, False=替换)
         crf: 视频质量
+        trim_start: 裁剪每个视频开头的秒数 (默认 0.0)
+        trim_end: 裁剪每个视频结尾的秒数 (默认 0.0)
+        audio_fade_in: 首尾音频淡入时长 (默认 0.0, 移除拼接爆音)
+        audio_fade_out: 首尾音频淡出时长 (默认 0.0)
 
     Returns:
         dict: {"output": str, "duration": float, ...}
@@ -88,7 +96,13 @@ def concat_videos(
     target_w = target_w // 2 * 2
     target_h = target_h // 2 * 2
 
-    logger.info(f"拼接 {len(video_paths)} 个视频 → {target_w}x{target_h}")
+    trim_msg = ""
+    if trim_start > 0 or trim_end > 0:
+        trim_msg = f" (裁剪: 头 {trim_start}s / 尾 {trim_end}s)"
+    fade_msg = ""
+    if audio_fade_in > 0 or audio_fade_out > 0:
+        fade_msg = f" (音频过渡: 入 {audio_fade_in}s / 出 {audio_fade_out}s)"
+    logger.info(f"拼接 {len(video_paths)} 个视频 → {target_w}x{target_h}{trim_msg}{fade_msg}")
 
     # 输出路径
     OUTPUT_CONCAT.mkdir(parents=True, exist_ok=True)
@@ -117,22 +131,53 @@ def concat_videos(
     xfade_type = TRANSITION_PRESETS.get(transition, {}).get("xfade")
     td = transition_duration
 
+    # 获取每个视频的原始时长和裁剪后时长
+    raw_durations = []
+    durations = []
+    for vp in video_paths:
+        info = get_video_info(str(vp))
+        raw_dur = info.get("duration", 5.0)
+        raw_durations.append(raw_dur)
+        durations.append(max(0.1, raw_dur - trim_start - trim_end))
+
     for i in range(n):
-        # scale + pad 确保所有视频尺寸一致, setsar=1 统一像素比
-        filter_parts.append(
-            f"[{i}:v]scale={target_w}:{target_h}:force_original_aspect_ratio=decrease,"
-            f"pad={target_w}:{target_h}:(ow-iw)/2:(oh-ih)/2:black,"
-            f"setsar=1[v{i}]"
+        # 视频流: trim → scale + pad
+        v_filters = []
+        if trim_start > 0 or trim_end > 0:
+            t_end = max(trim_start + 0.1, raw_durations[i] - trim_end)
+            v_filters.append(f"trim=start={trim_start}:end={t_end:.3f}")
+            v_filters.append("setpts=PTS-STARTPTS")
+        v_filters.append(
+            f"scale={target_w}:{target_h}:force_original_aspect_ratio=decrease"
         )
+        v_filters.append(
+            f"pad={target_w}:{target_h}:(ow-iw)/2:(oh-ih)/2:black"
+        )
+        v_filters.append("setsar=1")
+        filter_parts.append(f"[{i}:v]{','.join(v_filters)}[v{i}]")
+
+    # 音频流: atrim (用于后续 concat / acrossfade) + afade
+    for i in range(n):
+        a_filters = []
+        if trim_start > 0 or trim_end > 0:
+            t_end = max(trim_start + 0.1, raw_durations[i] - trim_end)
+            a_filters.append(f"atrim=start={trim_start}:end={t_end:.3f}")
+            a_filters.append("asetpts=PTS-STARTPTS")
+        else:
+            a_filters.append("acopy")
+
+        # 添加音频淡入淡出 (要求当前音频时长大于 淡入与淡出总和)
+        cur_dur = durations[i]
+        if cur_dur > audio_fade_in + audio_fade_out:
+            if audio_fade_in > 0:
+                a_filters.append(f"afade=t=in:st=0:d={audio_fade_in}")
+            if audio_fade_out > 0:
+                a_filters.append(f"afade=t=out:st={cur_dur - audio_fade_out:.3f}:d={audio_fade_out}")
+
+        filter_parts.append(f"[{i}:a]{','.join(a_filters)}[a{i}]")
 
     if xfade_type and n >= 2:
         # ========== xfade 过渡模式 ==========
-        # 获取每个视频的时长
-        durations = []
-        for vp in video_paths:
-            info = get_video_info(str(vp))
-            durations.append(info.get("duration", 5.0))
-
         # 链式 xfade: [v0][v1]xfade → [xf0], [xf0][v2]xfade → [xf1], ...
         # offset = 累计时长 - 累计过渡时长
         cumulative_offset = durations[0] - td
@@ -149,11 +194,11 @@ def concat_videos(
                 cumulative_offset += durations[i] - td
 
         # 音频: 链式 acrossfade
-        prev_a = "0:a"
+        prev_a = "a0"
         for i in range(1, n):
             out_a = "outa" if i == n - 1 else f"af{i-1}"
             filter_parts.append(
-                f"[{prev_a}][{i}:a]acrossfade=d={td}:c1=tri:c2=tri[{out_a}]"
+                f"[{prev_a}][a{i}]acrossfade=d={td}:c1=tri:c2=tri[{out_a}]"
             )
             prev_a = out_a
     else:
@@ -162,7 +207,7 @@ def concat_videos(
         filter_parts.append(f"{video_streams}concat=n={n}:v=1:a=0[outv]")
 
         # 音频也 concat
-        audio_streams = "".join(f"[{i}:a]" for i in range(n))
+        audio_streams = "".join(f"[a{i}]" for i in range(n))
         filter_parts.append(f"{audio_streams}concat=n={n}:v=0:a=1[outa]")
 
     # 背景音乐处理
