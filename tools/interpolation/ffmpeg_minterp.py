@@ -26,6 +26,8 @@ def interpolate_video_ffmpeg(
     mode: str = "mci",
     mc_mode: str = "aobmc",
     me_mode: str = "bidir",
+    mb_size: int = 16,
+    search_param: int = 32,
     crf: int = 18,
 ) -> dict:
     """
@@ -36,11 +38,13 @@ def interpolate_video_ffmpeg(
         output_path: 输出路径
         target_fps: 目标帧率
         mode: 插帧模式
-            - "mci": 运动补偿插帧 (最佳效果, 默认)
-            - "blend": 帧混合 (较快, 有残影)
-            - "dup": 帧复制 (最快, 无平滑)
+            - "mci": 运动补偿插帧 (最平滑, 但可能抖动/撕裂, 默认)
+            - "blend": 帧混合 (较快, 绝对稳定无抖动, 但有残影/重影)
+            - "dup": 帧复制 (最快, 极度卡顿)
         mc_mode: 运动补偿模式 ("aobmc" 自适应 / "obmc" 重叠)
         me_mode: 运动估计模式 ("bidir" 双向 / "bilat" 双侧)
+        mb_size: 运动搜索块大小 (默认16, 设为8可增加精度减少抖动但极慢)
+        search_param: 运动搜索范围 (默认32, 设为64可处理大范围运动但极慢)
         crf: 输出质量
 
     Returns:
@@ -75,6 +79,8 @@ def interpolate_video_ffmpeg(
         f":mi_mode={mode}"
         f":mc_mode={mc_mode}"
         f":me_mode={me_mode}"
+        f":mb_size={mb_size}"
+        f":search_param={search_param}"
         f":vsbmc=1"
     )
 
@@ -136,6 +142,8 @@ if __name__ == "__main__":
         help="运动估计模式 (默认: bidir)",
     )
     parser.add_argument("--crf", type=int, default=18, help="输出质量 (默认: 18)")
+    parser.add_argument("--mb-size", type=int, default=16, help="运动搜索块大小 (默认: 16)")
+    parser.add_argument("--search-param", type=int, default=32, help="运动搜索范围 (默认: 32)")
 
     args = parser.parse_args()
 
@@ -146,6 +154,8 @@ if __name__ == "__main__":
         mode=args.mode,
         mc_mode=args.mc_mode,
         me_mode=args.me_mode,
+        mb_size=args.mb_size,
+        search_param=args.search_param,
         crf=args.crf,
     )
     print(f"\n✅ 插帧完成: {result['original_fps']}fps → {result['new_fps']}fps")
