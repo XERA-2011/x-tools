@@ -78,10 +78,14 @@ def _ffmpeg_rescale(input_path: Path, output_path: Path, target_width: int, targ
         raise RuntimeError(f"FFmpeg 缩放失败:\n{result.stderr[-500:]}")
 
 
-def _run_realesrgan_on_frames(input_dir: Path, output_dir: Path, scale: int = 2, model: str = "realesr-animevideov3"):
+def _run_realesrgan_on_frames(input_dir: Path, output_dir: Path, total_frames: int, scale: int = 2, model: str = "realesr-animevideov3"):
     """
-    对一个目录的图片帧批量执行 realesrgan-ncnn-vulkan 超分
+    对一个目录的图片帧批量执行 realesrgan-ncnn-vulkan 超分，带进度条
     """
+    from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn, TimeRemainingColumn, MofNCompleteColumn
+    from tools.common import console
+    import time
+    
     cmd = [
         str(REALESRGAN_BIN),
         "-i", str(input_dir),
@@ -91,9 +95,43 @@ def _run_realesrgan_on_frames(input_dir: Path, output_dir: Path, scale: int = 2,
         "-m", str(REALESRGAN_MODELS),
         "-f", "png",
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace')
-    if result.returncode != 0:
-        raise RuntimeError(f"realesrgan-ncnn-vulkan 执行失败:\n{result.stderr[-500:]}")
+    process = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True, encoding='utf-8', errors='replace'
+    )
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TaskProgressColumn(),
+        MofNCompleteColumn(),
+        TextColumn("•"),
+        TimeRemainingColumn(),
+        console=console,
+    ) as progress:
+        task_id = progress.add_task(f"Real-ESRGAN {scale}x 超分", total=total_frames)
+
+        while process.poll() is None:
+            # 防抖：每 0.5 秒检查一次文件数量，避免频繁 IO 影响性能
+            time.sleep(0.5)
+            # 计算已生成的 png 数量
+            # generator 对象转 list 来获取长度
+            try:
+                completed = sum(1 for _ in output_dir.glob("*.png"))
+                progress.update(task_id, completed=completed)
+            except Exception:
+                pass
+
+        # 进程结束后更新到最新状态
+        completed = sum(1 for _ in output_dir.glob("*.png"))
+        progress.update(task_id, completed=completed)
+
+    if process.returncode != 0:
+        _, stderr = process.communicate()
+        raise RuntimeError(f"realesrgan-ncnn-vulkan 执行失败:\n{stderr[-500:]}")
 
 
 def upscale_video_realesrgan(
@@ -203,7 +241,7 @@ def upscale_video_realesrgan(
         logger.info(f"共提取 {total_frames} 帧, 开始 Real-ESRGAN {scale}x 超分...")
 
         # Step 2: 执行 realesrgan-ncnn-vulkan 超分 (整个目录)
-        _run_realesrgan_on_frames(frames_dir, upscaled_dir, scale=scale, model=model)
+        _run_realesrgan_on_frames(frames_dir, upscaled_dir, total_frames, scale=scale, model=model)
 
         # Step 3: 重组为视频
         logger.info("重组超分帧为视频...")
