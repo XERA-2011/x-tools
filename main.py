@@ -588,13 +588,20 @@ def menu_filter(media: list[Path]):
 
 def menu_concat(videos: list[Path]):
     """拼接视频菜单"""
-    print(f"\n将按以下顺序拼接 {len(videos)} 个视频:")
+    if len(videos) == 1:
+        print(f"\n检测到 1 个视频，可以为其添加背景音乐:")
+    else:
+        print(f"\n将按以下顺序拼接 {len(videos)} 个视频:")
+    
     for i, v in enumerate(videos, 1):
         print(f"  {i}. {v.name}")
     print()
 
-    # 背景音乐
-    add_bgm = inquirer.confirm(message="是否添加背景音乐?", default=False).execute()
+    # 背景音乐 (单个视频时默认为 True)
+    add_bgm = inquirer.confirm(
+        message="是否添加背景音乐?", 
+        default=True if len(videos) == 1 else False
+    ).execute()
 
     music_path = None
     music_volume = 0.3
@@ -680,7 +687,7 @@ def menu_concat(videos: list[Path]):
     else:
         audio_fade_in = audio_fade_out = float(audio_fade_choice)
 
-    if inquirer.confirm(message=f"确认拼接 {len(videos)} 个视频?", default=True).execute():
+    if inquirer.confirm(message=f"确认{'添加音乐' if len(videos) == 1 else f'拼接 {len(videos)} 个视频'}?", default=True).execute():
         concat_videos(
             video_paths=videos,
             music_path=music_path,

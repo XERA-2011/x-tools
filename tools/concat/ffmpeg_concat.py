@@ -79,8 +79,9 @@ def concat_videos(
         if not vp.is_file():
             raise FileNotFoundError(f"视频文件不存在: {vp}")
 
-    if len(video_paths) < 2:
-        raise ValueError("至少需要 2 个视频才能拼接")
+    # 如果只有 1 个视频，必须添加背景音乐才有意义
+    if len(video_paths) < 2 and music_path is None:
+        raise ValueError("至少需要 2 个视频才能拼接，或者为单个视频添加背景音乐")
 
     if music_path is not None:
         music_path = Path(music_path)
@@ -102,12 +103,19 @@ def concat_videos(
     fade_msg = ""
     if audio_fade_in > 0 or audio_fade_out > 0:
         fade_msg = f" (音频过渡: 入 {audio_fade_in}s / 出 {audio_fade_out}s)"
-    logger.info(f"拼接 {len(video_paths)} 个视频 → {target_w}x{target_h}{trim_msg}{fade_msg}")
+    
+    if len(video_paths) == 1:
+        logger.info(f"为单个视频添加背景音乐 → {target_w}x{target_h}{trim_msg}{fade_msg}")
+    else:
+        logger.info(f"拼接 {len(video_paths)} 个视频 → {target_w}x{target_h}{trim_msg}{fade_msg}")
 
     # 输出路径
     OUTPUT_CONCAT.mkdir(parents=True, exist_ok=True)
     if output_path is None:
-        output_name = generate_output_name("concat", ".mp4", tag=f"{len(video_paths)}in1")
+        if len(video_paths) == 1:
+            output_name = generate_output_name("concat", ".mp4", tag="with_bgm")
+        else:
+            output_name = generate_output_name("concat", ".mp4", tag=f"{len(video_paths)}in1")
         output_path = OUTPUT_CONCAT / output_name
     output_path = Path(output_path)
 
@@ -177,7 +185,7 @@ def concat_videos(
         filter_parts.append(f"[{i}:a]{','.join(a_filters)}[a{i}]")
 
     if xfade_type and n >= 2:
-        # ========== xfade 过渡模式 ==========
+        # ========== xfade 过渡模式 (至少 2 个视频) ==========
         # 链式 xfade: [v0][v1]xfade → [xf0], [xf0][v2]xfade → [xf1], ...
         # offset = 累计时长 - 累计过渡时长
         cumulative_offset = durations[0] - td
@@ -201,8 +209,12 @@ def concat_videos(
                 f"[{prev_a}][a{i}]acrossfade=d={td}:c1=tri:c2=tri[{out_a}]"
             )
             prev_a = out_a
+    elif n == 1:
+        # ========== 单个视频: 直接输出 ==========
+        filter_parts.append("[v0]copy[outv]")
+        filter_parts.append("[a0]acopy[outa]")
     else:
-        # ========== 无过渡: 简单 concat ==========
+        # ========== 无过渡: 简单 concat (至少 2 个视频) ==========
         video_streams = "".join(f"[v{i}]" for i in range(n))
         filter_parts.append(f"{video_streams}concat=n={n}:v=1:a=0[outv]")
 
@@ -250,7 +262,7 @@ def concat_videos(
     output_size_mb = output_path.stat().st_size / (1024 * 1024)
 
     logger.info(
-        f"✅ 拼接完成: {output_path.name} "
+        f"✅ {'添加音乐完成' if len(video_paths) == 1 else '拼接完成'}: {output_path.name} "
         f"({out_info.get('width', 0)}x{out_info.get('height', 0)}, "
         f"{out_info.get('duration', 0):.1f}s, {output_size_mb:.1f} MB)"
     )
