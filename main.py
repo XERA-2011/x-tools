@@ -672,11 +672,12 @@ def menu_concat(videos: list[Path]):
         message="是否进行音频平滑(淡入淡出), 防止拼接处突兀/破音?",
         choices=[
             Choice("0", "🔊 保持原声不变"),
-            Choice("1.0", "🔉 平滑过渡 1 秒 (推荐)"),
-            Choice("2.0", "🔉 平滑过渡 2 秒"),
+            Choice("1.0", "🔉 平滑过渡 1 秒"),
+            Choice("2.0", "🔉 平滑过渡 2 秒 (推荐)"),
+            Choice("3.0", "🔉 平滑过渡 3 秒"),
             Choice("custom", "✏️  自定义"),
         ],
-        default="1.0",
+        default="2.0",
     ).execute()
     
     audio_fade_in = 0.0

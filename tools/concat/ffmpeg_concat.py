@@ -165,29 +165,33 @@ def concat_videos(
         filter_parts.append(f"[{i}:v]{','.join(v_filters)}[v{i}]")
 
     # 音频流: atrim (用于后续 concat / acrossfade) + afade
-    for i in range(n):
-        a_filters = []
-        if trim_start > 0 or trim_end > 0:
-            t_end = max(trim_start + 0.1, raw_durations[i] - trim_end)
-            a_filters.append(f"atrim=start={trim_start}:end={t_end:.3f}")
-            a_filters.append("asetpts=PTS-STARTPTS")
-        else:
-            a_filters.append("acopy")
+    # 只有在需要保留原声或没有背景音乐时才处理原音频
+    if music_path is None or keep_original_audio:
+        for i in range(n):
+            a_filters = []
+            if trim_start > 0 or trim_end > 0:
+                t_end = max(trim_start + 0.1, raw_durations[i] - trim_end)
+                a_filters.append(f"atrim=start={trim_start}:end={t_end:.3f}")
+                a_filters.append("asetpts=PTS-STARTPTS")
 
-        # 添加音频淡入淡出 (要求当前音频时长大于 淡入与淡出总和)
-        cur_dur = durations[i]
-        if cur_dur > audio_fade_in + audio_fade_out:
-            if audio_fade_in > 0:
-                a_filters.append(f"afade=t=in:st=0:d={audio_fade_in}")
-            if audio_fade_out > 0:
-                a_filters.append(f"afade=t=out:st={cur_dur - audio_fade_out:.3f}:d={audio_fade_out}")
+            # 添加音频淡入淡出 (要求当前音频时长大于 淡入与淡出总和)
+            cur_dur = durations[i]
+            if cur_dur > audio_fade_in + audio_fade_out:
+                if audio_fade_in > 0:
+                    # 使用 tri (三角形) 曲线，更平滑自然
+                    a_filters.append(f"afade=t=in:st=0:d={audio_fade_in}:curve=tri")
+                if audio_fade_out > 0:
+                    a_filters.append(f"afade=t=out:st={cur_dur - audio_fade_out:.3f}:d={audio_fade_out}:curve=tri")
 
-        filter_parts.append(f"[{i}:a]{','.join(a_filters)}[a{i}]")
+            # 如果没有任何 filter，使用 anull 作为占位符
+            if not a_filters:
+                a_filters.append("anull")
+            
+            filter_parts.append(f"[{i}:a]{','.join(a_filters)}[a{i}]")
 
+    # 视频拼接/输出逻辑
     if xfade_type and n >= 2:
         # ========== xfade 过渡模式 (至少 2 个视频) ==========
-        # 链式 xfade: [v0][v1]xfade → [xf0], [xf0][v2]xfade → [xf1], ...
-        # offset = 累计时长 - 累计过渡时长
         cumulative_offset = durations[0] - td
         prev_label = "v0"
 
@@ -201,39 +205,65 @@ def concat_videos(
             if i < n - 1:
                 cumulative_offset += durations[i] - td
 
-        # 音频: 链式 acrossfade
-        prev_a = "a0"
-        for i in range(1, n):
-            out_a = "outa" if i == n - 1 else f"af{i-1}"
-            filter_parts.append(
-                f"[{prev_a}][a{i}]acrossfade=d={td}:c1=tri:c2=tri[{out_a}]"
-            )
-            prev_a = out_a
+        # 音频: 链式 acrossfade (只有在处理了原音频时才执行)
+        if music_path is None or keep_original_audio:
+            prev_a = "a0"
+            for i in range(1, n):
+                out_a = "outa" if i == n - 1 else f"af{i-1}"
+                filter_parts.append(
+                    f"[{prev_a}][a{i}]acrossfade=d={td}:c1=tri:c2=tri[{out_a}]"
+                )
+                prev_a = out_a
     elif n == 1:
         # ========== 单个视频: 直接输出 ==========
-        filter_parts.append("[v0]copy[outv]")
-        filter_parts.append("[a0]acopy[outa]")
+        filter_parts.append("[v0]null[outv]")
+        # 只有在需要保留原声时才创建 outa
+        if music_path is None or keep_original_audio:
+            filter_parts.append("[a0]anull[outa]")
     else:
         # ========== 无过渡: 简单 concat (至少 2 个视频) ==========
         video_streams = "".join(f"[v{i}]" for i in range(n))
         filter_parts.append(f"{video_streams}concat=n={n}:v=1:a=0[outv]")
 
-        # 音频也 concat
-        audio_streams = "".join(f"[a{i}]" for i in range(n))
-        filter_parts.append(f"{audio_streams}concat=n={n}:v=0:a=1[outa]")
+        # 音频也 concat (只有在处理了原音频时才执行)
+        if music_path is None or keep_original_audio:
+            audio_streams = "".join(f"[a{i}]" for i in range(n))
+            filter_parts.append(f"{audio_streams}concat=n={n}:v=0:a=1[outa]")
 
     # 背景音乐处理
-    if music_path is not None and keep_original_audio:
-        # 混合: 原声 + BGM
-        filter_parts.append(f"[{music_input_idx}:a]volume={music_volume}[bgm]")
-        filter_parts.append("[outa][bgm]amix=inputs=2:duration=first:dropout_transition=2[final_a]")
-        cmd += ["-filter_complex", ";".join(filter_parts)]
-        cmd += ["-map", "[outv]", "-map", "[final_a]"]
-    elif music_path is not None:
-        # 替换: 仅用 BGM
-        filter_parts.append(f"[{music_input_idx}:a]volume={music_volume}[bgm_a]")
-        cmd += ["-filter_complex", ";".join(filter_parts)]
-        cmd += ["-map", "[outv]", "-map", "[bgm_a]"]
+    if music_path is not None:
+        # 计算总视频时长 (用于背景音乐淡入淡出)
+        if xfade_type and n >= 2:
+            # 有过渡效果时，总时长 = 所有视频时长 - (n-1) * 过渡时长
+            total_duration = sum(durations) - (n - 1) * td
+        else:
+            # 无过渡或单个视频
+            total_duration = sum(durations)
+        
+        # 构建背景音乐 filter (音量 + 淡入淡出)
+        bgm_filters = [f"volume={music_volume}"]
+        
+        # 为背景音乐添加淡入淡出效果
+        if total_duration > audio_fade_in + audio_fade_out:
+            if audio_fade_in > 0:
+                # 使用 tri (三角形) 曲线，更平滑自然
+                bgm_filters.append(f"afade=t=in:st=0:d={audio_fade_in}:curve=tri")
+            if audio_fade_out > 0:
+                bgm_filters.append(f"afade=t=out:st={total_duration - audio_fade_out:.3f}:d={audio_fade_out}:curve=tri")
+        
+        bgm_filter_str = ",".join(bgm_filters)
+        
+        if keep_original_audio:
+            # 混合: 原声 + BGM
+            filter_parts.append(f"[{music_input_idx}:a]{bgm_filter_str}[bgm]")
+            filter_parts.append("[outa][bgm]amix=inputs=2:duration=first:dropout_transition=2[final_a]")
+            cmd += ["-filter_complex", ";".join(filter_parts)]
+            cmd += ["-map", "[outv]", "-map", "[final_a]"]
+        else:
+            # 替换: 仅用 BGM
+            filter_parts.append(f"[{music_input_idx}:a]{bgm_filter_str}[bgm_a]")
+            cmd += ["-filter_complex", ";".join(filter_parts)]
+            cmd += ["-map", "[outv]", "-map", "[bgm_a]"]
     else:
         # 无 BGM: 用拼接后的原声
         cmd += ["-filter_complex", ";".join(filter_parts)]
