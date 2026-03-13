@@ -17,6 +17,11 @@ from pathlib import Path
 
 from config import FFMPEG_BIN, FFPROBE_BIN, OUTPUT_CONCAT, MUSIC_DIR
 from tools.common import get_video_info, generate_output_name, logger
+from tools.ffmpeg.ffmpeg_core import (
+    build_base_filters,
+    build_concat_graph,
+    compute_total_duration,
+)
 
 # 支持的音频格式
 AUDIO_EXTENSIONS = {".mp3", ".wav", ".aac", ".m4a", ".flac", ".ogg", ".wma"}
@@ -135,110 +140,37 @@ def concat_videos(
         cmd += ["-i", str(music_path)]
 
     # 构建 filter_complex
-    filter_parts = []
     xfade_type = TRANSITION_PRESETS.get(transition, {}).get("xfade")
     td = transition_duration
-
-    # 获取每个视频的原始时长和裁剪后时长
-    raw_durations = []
-    durations = []
-    for vp in video_paths:
-        info = get_video_info(str(vp))
-        raw_dur = info.get("duration", 5.0)
-        raw_durations.append(raw_dur)
-        durations.append(max(0.1, raw_dur - trim_start - trim_end))
-
-    for i in range(n):
-        # 视频流: trim → scale + pad
-        v_filters = []
-        if trim_start > 0 or trim_end > 0:
-            t_end = max(trim_start + 0.1, raw_durations[i] - trim_end)
-            v_filters.append(f"trim=start={trim_start}:end={t_end:.3f}")
-            v_filters.append("setpts=PTS-STARTPTS")
-        v_filters.append(
-            f"scale={target_w}:{target_h}:force_original_aspect_ratio=decrease"
-        )
-        v_filters.append(
-            f"pad={target_w}:{target_h}:(ow-iw)/2:(oh-ih)/2:black"
-        )
-        v_filters.append("setsar=1")
-        filter_parts.append(f"[{i}:v]{','.join(v_filters)}[v{i}]")
-
-    # 音频流: atrim (用于后续 concat / acrossfade) + afade
-    # 只有在需要保留原声或没有背景音乐时才处理原音频
-    if music_path is None or keep_original_audio:
-        for i in range(n):
-            a_filters = []
-            if trim_start > 0 or trim_end > 0:
-                t_end = max(trim_start + 0.1, raw_durations[i] - trim_end)
-                a_filters.append(f"atrim=start={trim_start}:end={t_end:.3f}")
-                a_filters.append("asetpts=PTS-STARTPTS")
-
-            # 添加音频淡入淡出 (要求当前音频时长大于 淡入与淡出总和)
-            cur_dur = durations[i]
-            if cur_dur > audio_fade_in + audio_fade_out:
-                if audio_fade_in > 0:
-                    # 使用 tri (三角形) 曲线，更平滑自然
-                    a_filters.append(f"afade=t=in:st=0:d={audio_fade_in}:curve=tri")
-                if audio_fade_out > 0:
-                    a_filters.append(f"afade=t=out:st={cur_dur - audio_fade_out:.3f}:d={audio_fade_out}:curve=tri")
-
-            # 如果没有任何 filter，使用 anull 作为占位符
-            if not a_filters:
-                a_filters.append("anull")
-            
-            filter_parts.append(f"[{i}:a]{','.join(a_filters)}[a{i}]")
-
-    # 视频拼接/输出逻辑
-    if xfade_type and n >= 2:
-        # ========== xfade 过渡模式 (至少 2 个视频) ==========
-        cumulative_offset = durations[0] - td
-        prev_label = "v0"
-
-        for i in range(1, n):
-            out_label = "outv" if i == n - 1 else f"xf{i-1}"
-            filter_parts.append(
-                f"[{prev_label}][v{i}]xfade=transition={xfade_type}:"
-                f"duration={td}:offset={cumulative_offset:.3f}[{out_label}]"
-            )
-            prev_label = out_label
-            if i < n - 1:
-                cumulative_offset += durations[i] - td
-
-        # 音频: 链式 acrossfade (只有在处理了原音频时才执行)
-        if music_path is None or keep_original_audio:
-            prev_a = "a0"
-            for i in range(1, n):
-                out_a = "outa" if i == n - 1 else f"af{i-1}"
-                filter_parts.append(
-                    f"[{prev_a}][a{i}]acrossfade=d={td}:c1=tri:c2=tri[{out_a}]"
-                )
-                prev_a = out_a
-    elif n == 1:
-        # ========== 单个视频: 直接输出 ==========
-        filter_parts.append("[v0]null[outv]")
-        # 只有在需要保留原声时才创建 outa
-        if music_path is None or keep_original_audio:
-            filter_parts.append("[a0]anull[outa]")
-    else:
-        # ========== 无过渡: 简单 concat (至少 2 个视频) ==========
-        video_streams = "".join(f"[v{i}]" for i in range(n))
-        filter_parts.append(f"{video_streams}concat=n={n}:v=1:a=0[outv]")
-
-        # 音频也 concat (只有在处理了原音频时才执行)
-        if music_path is None or keep_original_audio:
-            audio_streams = "".join(f"[a{i}]" for i in range(n))
-            filter_parts.append(f"{audio_streams}concat=n={n}:v=0:a=1[outa]")
+    include_audio = (music_path is None or keep_original_audio)
+    filter_parts, durations, _raw_durations = build_base_filters(
+        video_paths=video_paths,
+        target_w=target_w,
+        target_h=target_h,
+        trim_start=trim_start,
+        trim_end=trim_end,
+        audio_fade_in=audio_fade_in,
+        audio_fade_out=audio_fade_out,
+        include_audio=include_audio,
+    )
+    filter_parts = build_concat_graph(
+        filter_parts=filter_parts,
+        n=n,
+        durations=durations,
+        xfade_type=xfade_type,
+        transition_duration=td,
+        include_audio=include_audio,
+    )
 
     # 背景音乐处理
     if music_path is not None:
         # 计算总视频时长 (用于背景音乐淡入淡出)
-        if xfade_type and n >= 2:
-            # 有过渡效果时，总时长 = 所有视频时长 - (n-1) * 过渡时长
-            total_duration = sum(durations) - (n - 1) * td
-        else:
-            # 无过渡或单个视频
-            total_duration = sum(durations)
+        total_duration = compute_total_duration(
+            durations=durations,
+            xfade_type=xfade_type,
+            transition_duration=td,
+            n=n,
+        )
         
         # 构建背景音乐 filter (音量 + 淡入淡出)
         bgm_filters = [f"volume={music_volume}"]
@@ -304,6 +236,7 @@ def concat_videos(
         "size_mb": round(output_size_mb, 2),
         "has_bgm": music_path is not None,
     }
+
 
 
 # ============================================================

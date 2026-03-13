@@ -28,6 +28,7 @@ from tools.mediainfo.probe import get_detailed_info, display_info, display_batch
 from tools.filter.batch import batch_filter
 from tools.filter.ffmpeg_filter import FILTER_PRESETS
 from tools.crop.batch import batch_crop
+from tools.bgm.ffmpeg_bgm import add_bgm_to_video
 from tools.concat.ffmpeg_concat import concat_videos, get_available_music, TRANSITION_PRESETS
 from tools.subtitle.whisper_transcribe import transcribe_video, WHISPER_MODELS
 from tools.subtitle.ffmpeg_subtitle import burn_subtitles, SUBTITLE_STYLES
@@ -586,51 +587,93 @@ def menu_filter(media: list[Path]):
         batch_filter(files=media, preset=preset)
 
 
+def _prompt_bgm_options() -> tuple[str, float, bool]:
+    available_music = get_available_music()
+
+    music_choices = []
+    if available_music:
+        for m in available_music:
+            music_choices.append(Choice(str(m), f"🎵 {m.stem}"))
+    music_choices.append(Choice("custom", "📂 指定音乐文件路径"))
+
+    music_choice = inquirer.select(
+        message="选择背景音乐:",
+        choices=music_choices,
+    ).execute()
+
+    if music_choice == "custom":
+        music_path = inquirer.filepath(
+            message="音乐文件路径:",
+            validate=lambda x: Path(x).is_file(),
+        ).execute()
+    else:
+        music_path = music_choice
+
+    music_volume = float(inquirer.text(message="音乐音量 (0.0~1.0):", default="0.3").execute())
+    keep_audio = inquirer.confirm(message="是否保留原视频声音 (混合)?", default=False).execute()
+    return music_path, music_volume, keep_audio
+
+
+def menu_add_bgm(videos: list[Path]):
+    """添加背景音乐菜单"""
+    if not videos:
+        print("❌ 未找到视频文件")
+        return
+
+    if len(videos) > 1:
+        video_choice = inquirer.select(
+            message="选择要添加背景音乐的视频:",
+            choices=[Choice(str(v), v.name) for v in videos],
+        ).execute()
+        video_path = Path(video_choice)
+    else:
+        video_path = videos[0]
+
+    music_path, music_volume, keep_audio = _prompt_bgm_options()
+
+    # 音频淡入淡出
+    audio_fade_choice = inquirer.select(
+        message="是否进行音频淡入淡出?",
+        choices=[
+            Choice("0", "🔊 不处理"),
+            Choice("1.0", "🔉 1 秒"),
+            Choice("2.0", "🔉 2 秒 (推荐)"),
+            Choice("3.0", "🔉 3 秒"),
+            Choice("custom", "✏️  自定义"),
+        ],
+        default="2.0",
+    ).execute()
+
+    audio_fade_in = 0.0
+    audio_fade_out = 0.0
+    if audio_fade_choice == "custom":
+        audio_fade_in = float(inquirer.text(message="音频首部淡入 (秒):").execute())
+        audio_fade_out = float(inquirer.text(message="音频尾部淡出 (秒):").execute())
+    else:
+        audio_fade_in = audio_fade_out = float(audio_fade_choice)
+
+    if inquirer.confirm(message="确认添加背景音乐?", default=True).execute():
+        add_bgm_to_video(
+            video_path=video_path,
+            music_path=music_path,
+            music_volume=music_volume,
+            keep_original_audio=keep_audio,
+            audio_fade_in=audio_fade_in,
+            audio_fade_out=audio_fade_out,
+        )
+
+
 def menu_concat(videos: list[Path]):
     """拼接视频菜单"""
-    if len(videos) == 1:
-        print(f"\n检测到 1 个视频，可以为其添加背景音乐:")
-    else:
-        print(f"\n将按以下顺序拼接 {len(videos)} 个视频:")
+    if len(videos) < 2:
+        print("❌ 拼接需要至少 2 个视频")
+        return
+
+    print(f"\n将按以下顺序拼接 {len(videos)} 个视频:")
     
     for i, v in enumerate(videos, 1):
         print(f"  {i}. {v.name}")
     print()
-
-    # 背景音乐 (单个视频时默认为 True)
-    add_bgm = inquirer.confirm(
-        message="是否添加背景音乐?", 
-        default=True if len(videos) == 1 else False
-    ).execute()
-
-    music_path = None
-    music_volume = 0.3
-    keep_audio = False
-
-    if add_bgm:
-        available_music = get_available_music()
-
-        music_choices = []
-        if available_music:
-            for m in available_music:
-                music_choices.append(Choice(str(m), f"🎵 {m.stem}"))
-        music_choices.append(Choice("custom", "📂 指定音乐文件路径"))
-
-        music_choice = inquirer.select(
-            message="选择背景音乐:",
-            choices=music_choices,
-        ).execute()
-
-        if music_choice == "custom":
-            music_path = inquirer.filepath(
-                message="音乐文件路径:",
-                validate=lambda x: Path(x).is_file(),
-            ).execute()
-        else:
-            music_path = music_choice
-
-        music_volume = float(inquirer.text(message="音乐音量 (0.0~1.0):", default="0.3").execute())
-        keep_audio = inquirer.confirm(message="是否保留原视频声音 (混合)?", default=False).execute()
 
     # 过渡效果
     transition_choices = [
@@ -688,12 +731,9 @@ def menu_concat(videos: list[Path]):
     else:
         audio_fade_in = audio_fade_out = float(audio_fade_choice)
 
-    if inquirer.confirm(message=f"确认{'添加音乐' if len(videos) == 1 else f'拼接 {len(videos)} 个视频'}?", default=True).execute():
+    if inquirer.confirm(message=f"确认拼接 {len(videos)} 个视频?", default=True).execute():
         concat_videos(
             video_paths=videos,
-            music_path=music_path,
-            music_volume=music_volume,
-            keep_original_audio=keep_audio,
             transition=transition,
             transition_duration=transition_duration,
             trim_start=trim_start,
@@ -834,6 +874,7 @@ def main():
                 Choice("filter", "🎨 滤镜效果 (Filter)"),
                 Choice("crop", "✂️  裁切比例 (Crop)"),
                 Choice("concat", "🎬 拼接视频 (Concat)"),
+                Choice("bgm", "🎵 添加背景音乐 (BGM)"),
                 Choice("subtitle", "📝 字幕 (Subtitle)"),
                 Choice("mediainfo", "📊 查看信息 (Media Info)"),
                 Separator(),
@@ -882,6 +923,8 @@ def main():
                 menu_interpolate(videos)
             elif module == "concat":
                 menu_concat(videos)
+            elif module == "bgm":
+                menu_add_bgm(videos)
 
         print()
         if not inquirer.confirm(message="继续其他操作?", default=True).execute():
