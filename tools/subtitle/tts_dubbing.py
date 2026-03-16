@@ -15,7 +15,7 @@ import tempfile
 from pathlib import Path
 
 from config import FFMPEG_BIN, OUTPUT_SUBTITLE
-from tools.common import logger, generate_output_name, get_video_info
+from tools.common import generate_output_name, get_video_info, logger
 
 # Edge-TTS 音色预设 (部分中英文高质量音色)
 TTS_VOICES = {

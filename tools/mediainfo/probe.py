@@ -20,7 +20,6 @@ from rich.table import Table
 from config import FFPROBE_BIN
 from tools.common import logger
 
-
 console = Console()
 
 

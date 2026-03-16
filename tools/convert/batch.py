@@ -10,8 +10,8 @@
 from pathlib import Path
 
 from config import INPUT_DIR, ensure_dirs
-from tools.common import scan_media, batch_process, print_summary
-from tools.convert.ffmpeg_convert import convert_media, ALL_FORMATS
+from tools.common import batch_process, print_summary, scan_media
+from tools.convert.ffmpeg_convert import ALL_FORMATS, convert_media
 
 
 def batch_convert(

@@ -14,8 +14,7 @@ FFmpeg 运动补偿插帧模块
 import subprocess
 from pathlib import Path
 
-
-from config import FFMPEG_BIN, OUTPUT_INTERPOLATION, INTERPOLATION_TARGET_FPS
+from config import FFMPEG_BIN, INTERPOLATION_TARGET_FPS, OUTPUT_INTERPOLATION
 from tools.common import get_video_info, logger, run_ffmpeg_with_progress
 
 

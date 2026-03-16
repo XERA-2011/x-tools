@@ -11,7 +11,7 @@ import subprocess
 from pathlib import Path
 
 from config import FFMPEG_BIN, OUTPUT_SUBTITLE
-from tools.common import logger, generate_output_name
+from tools.common import generate_output_name, logger
 
 # Whisper 模型配置
 WHISPER_MODELS = {

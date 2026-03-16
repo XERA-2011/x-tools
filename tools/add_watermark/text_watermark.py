@@ -24,14 +24,19 @@ import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
-
 from config import (
-    OUTPUT_ADD_WATERMARK, IMAGE_EXTENSIONS, VIDEO_EXTENSIONS,
-    ADD_WATERMARK_FONT_SIZE, ADD_WATERMARK_OPACITY,
-    ADD_WATERMARK_COLOR, ADD_WATERMARK_POSITION, ADD_WATERMARK_MARGIN,
-    ADD_WATERMARK_STROKE_WIDTH, clamp,
+    ADD_WATERMARK_COLOR,
+    ADD_WATERMARK_FONT_SIZE,
+    ADD_WATERMARK_MARGIN,
+    ADD_WATERMARK_OPACITY,
+    ADD_WATERMARK_POSITION,
+    ADD_WATERMARK_STROKE_WIDTH,
+    IMAGE_EXTENSIONS,
+    OUTPUT_ADD_WATERMARK,
+    VIDEO_EXTENSIONS,
+    clamp,
 )
-from tools.common import logger, VideoFrameProcessor, generate_output_name, calc_overlay_position
+from tools.common import VideoFrameProcessor, calc_overlay_position, generate_output_name, logger
 
 # 项目内置字体目录 (放在 bin/fonts/ 下，随项目分发)
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent

@@ -14,24 +14,24 @@ from InquirerPy import inquirer
 from InquirerPy.base.control import Choice
 from InquirerPy.separator import Separator
 
-from config import INPUT_DIR, FFMPEG_BIN, ADD_WATERMARK_TEXT, ensure_dirs
-from tools.common import scan_videos, scan_media
-
-# 引入各个批量处理去水、超分等函数
-from tools.watermark.batch import batch_remove_watermark_opencv, batch_remove_watermark_lama
-from tools.upscale.batch import batch_upscale_ffmpeg, batch_upscale_realesrgan
-from tools.interpolation.batch import batch_interpolate_ffmpeg, batch_interpolate_rife
-from tools.add_watermark.batch import batch_add_text_watermark, batch_add_image_watermark
+from config import ADD_WATERMARK_TEXT, FFMPEG_BIN, INPUT_DIR, ensure_dirs
+from tools.add_watermark.batch import batch_add_image_watermark, batch_add_text_watermark
+from tools.bgm.ffmpeg_bgm import add_bgm_to_video
+from tools.common import scan_media, scan_videos
+from tools.concat.ffmpeg_concat import TRANSITION_PRESETS, concat_videos, get_available_music
 from tools.convert.batch import batch_convert
-from tools.convert.ffmpeg_convert import VIDEO_FORMATS, AUDIO_FORMATS
-from tools.mediainfo.probe import get_detailed_info, display_info, display_batch_summary
+from tools.convert.ffmpeg_convert import AUDIO_FORMATS, VIDEO_FORMATS
+from tools.crop.batch import batch_crop
 from tools.filter.batch import batch_filter
 from tools.filter.ffmpeg_filter import FILTER_PRESETS
-from tools.crop.batch import batch_crop
-from tools.bgm.ffmpeg_bgm import add_bgm_to_video
-from tools.concat.ffmpeg_concat import concat_videos, get_available_music, TRANSITION_PRESETS
-from tools.subtitle.whisper_transcribe import transcribe_video, WHISPER_MODELS
-from tools.subtitle.ffmpeg_subtitle import burn_subtitles, SUBTITLE_STYLES
+from tools.interpolation.batch import batch_interpolate_ffmpeg, batch_interpolate_rife
+from tools.mediainfo.probe import display_batch_summary, display_info, get_detailed_info
+from tools.subtitle.ffmpeg_subtitle import SUBTITLE_STYLES, burn_subtitles
+from tools.subtitle.whisper_transcribe import WHISPER_MODELS, transcribe_video
+from tools.upscale.batch import batch_upscale_ffmpeg, batch_upscale_realesrgan
+
+# 引入各个批量处理去水、超分等函数
+from tools.watermark.batch import batch_remove_watermark_lama, batch_remove_watermark_opencv
 
 
 def _prompt_input_mode() -> str:
@@ -745,9 +745,9 @@ def menu_concat(videos: list[Path]):
 
 def menu_subtitle(media: list[Path]):
     """字幕菜单"""
-    from tools.subtitle.whisper_transcribe import WHISPER_MODELS, transcribe_video
     from tools.subtitle.ffmpeg_subtitle import SUBTITLE_STYLES, burn_subtitles
     from tools.subtitle.tts_dubbing import TTS_VOICES, dub_video_with_tts
+    from tools.subtitle.whisper_transcribe import WHISPER_MODELS, transcribe_video
 
     # 只处理视频
     videos = [f for f in media if f.suffix.lower() in {".mp4", ".avi", ".mov", ".mkv", ".flv", ".wmv", ".webm", ".m4v"}]

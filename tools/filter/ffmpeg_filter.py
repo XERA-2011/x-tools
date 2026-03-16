@@ -13,9 +13,8 @@ FFmpeg 滤镜效果模块
 import subprocess
 from pathlib import Path
 
-from config import FFMPEG_BIN, OUTPUT_FILTER, IMAGE_EXTENSIONS, VIDEO_EXTENSIONS
+from config import FFMPEG_BIN, IMAGE_EXTENSIONS, OUTPUT_FILTER, VIDEO_EXTENSIONS
 from tools.common import generate_output_name, logger
-
 
 # ============================================================
 # 预设滤镜定义

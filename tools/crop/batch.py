@@ -4,8 +4,8 @@
 from pathlib import Path
 
 from config import INPUT_DIR, ensure_dirs
-from tools.common import scan_media, batch_process, print_summary
-from tools.crop.ffmpeg_crop import crop_media, ASPECT_RATIOS
+from tools.common import batch_process, print_summary, scan_media
+from tools.crop.ffmpeg_crop import ASPECT_RATIOS, crop_media
 
 
 def batch_crop(

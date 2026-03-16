@@ -10,7 +10,7 @@ import subprocess
 from pathlib import Path
 
 from config import FFMPEG_BIN, OUTPUT_SUBTITLE
-from tools.common import get_video_info, logger, generate_output_name
+from tools.common import generate_output_name, get_video_info, logger
 
 # 字幕样式预设 (ASS 格式 Style 行)
 SUBTITLE_STYLES = {

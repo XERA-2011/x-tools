@@ -12,18 +12,18 @@ from typing import Callable, Generator
 
 import cv2
 import numpy as np
+from rich.console import Console
 from rich.progress import (
+    BarColumn,
+    MofNCompleteColumn,
     Progress,
     SpinnerColumn,
-    TextColumn,
-    BarColumn,
     TaskProgressColumn,
+    TextColumn,
     TimeRemainingColumn,
-    MofNCompleteColumn,
 )
-from rich.console import Console
 
-from config import VIDEO_EXTENSIONS, IMAGE_EXTENSIONS, FFPROBE_BIN, FFMPEG_BIN
+from config import FFMPEG_BIN, FFPROBE_BIN, IMAGE_EXTENSIONS, VIDEO_EXTENSIONS
 
 # ============================================================
 # 日志配置
@@ -606,7 +606,7 @@ def load_or_create_mask(
     Returns:
         二值 mask (uint8, 白色=水印区域)
     """
-    from tools.watermark.opencv_inpaint import create_mask_from_regions, _scale_regions
+    from tools.watermark.opencv_inpaint import _scale_regions, create_mask_from_regions
 
     # 按参考分辨率缩放坐标
     if regions and ref_width > 0 and ref_height > 0:

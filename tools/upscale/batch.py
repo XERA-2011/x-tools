@@ -7,9 +7,8 @@
 """
 from pathlib import Path
 
-
 from config import INPUT_DIR, UPSCALE_FACTOR, ensure_dirs
-from tools.common import scan_videos, batch_process, print_summary
+from tools.common import batch_process, print_summary, scan_videos
 from tools.upscale.ffmpeg_scale import upscale_video_ffmpeg
 
 

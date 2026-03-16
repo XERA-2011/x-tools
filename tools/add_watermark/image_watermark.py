@@ -23,14 +23,17 @@ import cv2
 import numpy as np
 from PIL import Image
 
-
 from config import (
-    OUTPUT_ADD_WATERMARK, IMAGE_EXTENSIONS, VIDEO_EXTENSIONS,
-    ADD_WATERMARK_OPACITY, ADD_WATERMARK_POSITION,
-    ADD_WATERMARK_MARGIN, ADD_WATERMARK_LOGO_SCALE,
+    ADD_WATERMARK_LOGO_SCALE,
+    ADD_WATERMARK_MARGIN,
+    ADD_WATERMARK_OPACITY,
+    ADD_WATERMARK_POSITION,
+    IMAGE_EXTENSIONS,
+    OUTPUT_ADD_WATERMARK,
+    VIDEO_EXTENSIONS,
     clamp,
 )
-from tools.common import logger, VideoFrameProcessor, generate_output_name, calc_overlay_position
+from tools.common import VideoFrameProcessor, calc_overlay_position, generate_output_name, logger
 
 
 # ============================================================

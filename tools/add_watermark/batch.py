@@ -7,11 +7,10 @@
 """
 from pathlib import Path
 
-
 from config import INPUT_DIR, ensure_dirs
-from tools.common import scan_media, batch_process, print_summary
-from tools.add_watermark.text_watermark import add_text_watermark
 from tools.add_watermark.image_watermark import add_image_watermark
+from tools.add_watermark.text_watermark import add_text_watermark
+from tools.common import batch_process, print_summary, scan_media
 
 
 def batch_add_text_watermark(

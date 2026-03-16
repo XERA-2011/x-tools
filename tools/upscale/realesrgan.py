@@ -20,11 +20,8 @@ import sys
 import tempfile
 from pathlib import Path
 
-
-
-from config import OUTPUT_UPSCALE, UPSCALE_FACTOR, FFMPEG_BIN
-from tools.common import logger, generate_output_name, get_video_info, orient_resolution
-
+from config import FFMPEG_BIN, OUTPUT_UPSCALE, UPSCALE_FACTOR
+from tools.common import generate_output_name, get_video_info, logger, orient_resolution
 
 # realesrgan-ncnn-vulkan 二进制路径 (项目 bin/ 目录)
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -82,9 +79,19 @@ def _run_realesrgan_on_frames(input_dir: Path, output_dir: Path, total_frames: i
     """
     对一个目录的图片帧批量执行 realesrgan-ncnn-vulkan 超分，带进度条
     """
-    from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn, TimeRemainingColumn, MofNCompleteColumn
-    from tools.common import console
     import time
+
+    from rich.progress import (
+        BarColumn,
+        MofNCompleteColumn,
+        Progress,
+        SpinnerColumn,
+        TaskProgressColumn,
+        TextColumn,
+        TimeRemainingColumn,
+    )
+
+    from tools.common import console
     
     cmd = [
         str(REALESRGAN_BIN),

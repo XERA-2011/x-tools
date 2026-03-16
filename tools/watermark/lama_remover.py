@@ -14,17 +14,16 @@ LaMA 深度学习去水印模块
   pip install torch torchvision
 """
 import importlib.util
-import urllib.request
 import os
 import sys
+import urllib.request
 from pathlib import Path
 
 import cv2
 import numpy as np
 
-
 from config import OUTPUT_WATERMARK
-from tools.common import logger, VideoFrameProcessor, generate_output_name, load_or_create_mask, parse_region
+from tools.common import VideoFrameProcessor, generate_output_name, load_or_create_mask, logger, parse_region
 
 
 def _check_torch():

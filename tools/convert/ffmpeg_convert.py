@@ -16,8 +16,7 @@ import subprocess
 from pathlib import Path
 
 from config import FFMPEG_BIN, OUTPUT_CONVERT
-from tools.common import get_video_info, generate_output_name, logger
-
+from tools.common import generate_output_name, get_video_info, logger
 
 # 支持的输出格式及其默认编码器
 VIDEO_FORMATS = {

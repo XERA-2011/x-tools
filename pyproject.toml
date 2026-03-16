@@ -23,3 +23,16 @@ include = ["tools*", "config"]
 
 [tool.setuptools]
 py-modules = ["config", "main"]
+
+[tool.black]
+line-length = 120
+target-version = ["py310"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+fix = false
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+ignore = []

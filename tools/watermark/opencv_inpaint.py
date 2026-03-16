@@ -15,10 +15,8 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-
-
 from config import OUTPUT_WATERMARK, WATERMARK_INPAINT_RADIUS
-from tools.common import logger, VideoFrameProcessor, generate_output_name, load_or_create_mask, parse_region
+from tools.common import VideoFrameProcessor, generate_output_name, load_or_create_mask, logger, parse_region
 
 
 def create_mask_from_regions(

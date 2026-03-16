@@ -4,8 +4,8 @@
 from pathlib import Path
 
 from config import INPUT_DIR, ensure_dirs
-from tools.common import scan_media, batch_process, print_summary
-from tools.filter.ffmpeg_filter import apply_filter, FILTER_PRESETS
+from tools.common import batch_process, print_summary, scan_media
+from tools.filter.ffmpeg_filter import FILTER_PRESETS, apply_filter
 
 
 def batch_filter(

@@ -15,8 +15,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from config import FFMPEG_BIN, FFPROBE_BIN, OUTPUT_CONCAT, MUSIC_DIR
-from tools.common import get_video_info, generate_output_name, logger
+from config import FFMPEG_BIN, FFPROBE_BIN, MUSIC_DIR, OUTPUT_CONCAT
+from tools.common import generate_output_name, get_video_info, logger
 from tools.ffmpeg.ffmpeg_core import (
     build_base_filters,
     build_concat_graph,

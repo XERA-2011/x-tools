@@ -14,9 +14,8 @@
 import subprocess
 from pathlib import Path
 
-from config import FFMPEG_BIN, OUTPUT_CROP, IMAGE_EXTENSIONS, VIDEO_EXTENSIONS
-from tools.common import get_video_info, generate_output_name, logger
-
+from config import FFMPEG_BIN, IMAGE_EXTENSIONS, OUTPUT_CROP, VIDEO_EXTENSIONS
+from tools.common import generate_output_name, get_video_info, logger
 
 # ============================================================
 # 预设比例

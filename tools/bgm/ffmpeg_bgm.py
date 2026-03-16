@@ -4,9 +4,8 @@
 使用方式:
   python tools/bgm/ffmpeg_bgm.py video.mp4 -m music/bgm.mp3
 """
-from pathlib import Path
-
 import subprocess
+from pathlib import Path
 
 from config import FFMPEG_BIN, OUTPUT_BGM
 from tools.common import generate_output_name, get_video_info, logger

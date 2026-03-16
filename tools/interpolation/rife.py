@@ -22,9 +22,8 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-
-from config import OUTPUT_INTERPOLATION, INTERPOLATION_TARGET_FPS
-from tools.common import logger, VideoFrameProcessor, generate_output_name
+from config import INTERPOLATION_TARGET_FPS, OUTPUT_INTERPOLATION
+from tools.common import VideoFrameProcessor, generate_output_name, logger
 
 
 def _check_rife_ncnn():
