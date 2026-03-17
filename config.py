@@ -59,6 +59,16 @@ else:
 
 # 去水印
 WATERMARK_INPAINT_RADIUS = 5            # OpenCV inpaint 修复半径
+WATERMARK_BRAND_PRESETS = {
+    # Veo 示例视频 (1080x1920) 右下角文字水印坐标
+    # 坐标格式: (x1, y1, x2, y2), 参考分辨率用于自动缩放
+    "veo": {
+        "label": "Veo (右下角文字)",
+        "ref_width": 1080,
+        "ref_height": 1920,
+        "regions": [(949, 1839, 1061, 1898)],
+    },
+}
 
 # 加水印
 ADD_WATERMARK_FONT_SIZE = 50            # 默认字号
