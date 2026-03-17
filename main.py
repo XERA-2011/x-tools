@@ -26,6 +26,7 @@ from tools.filter.batch import batch_filter
 from tools.filter.ffmpeg_filter import FILTER_PRESETS
 from tools.interpolation.batch import batch_interpolate_ffmpeg, batch_interpolate_rife
 from tools.mediainfo.probe import display_batch_summary, display_info, get_detailed_info
+from tools.qc.auto_qc import batch_qc, display_qc_summary
 from tools.subtitle.ffmpeg_subtitle import SUBTITLE_STYLES, burn_subtitles
 from tools.subtitle.whisper_transcribe import WHISPER_MODELS, transcribe_video
 from tools.upscale.batch import batch_upscale_ffmpeg, batch_upscale_realesrgan
@@ -545,6 +546,21 @@ def menu_mediainfo(media: list[Path]):
                 display_info(info)
 
 
+def menu_qc(videos: list[Path]):
+    mode = inquirer.select(
+        message="质量检测模式:",
+        choices=[
+            Choice("quick", "⚡ 快速 (黑场/静音 + 元信息)"),
+            Choice("full", "🔍 完整 (含冻结检测, 更慢)"),
+        ],
+        default="quick",
+    ).execute()
+
+    detect_freeze = mode == "full"
+    results = batch_qc(videos, detect_black=True, detect_silence=True, detect_freeze=detect_freeze)
+    display_qc_summary(results)
+
+
 def menu_crop(media: list[Path]):
     """裁切比例菜单"""
     ratio = inquirer.select(
@@ -876,6 +892,7 @@ def main():
                 Choice("concat", "🎬 拼接视频 (Concat)"),
                 Choice("bgm", "🎵 添加背景音乐 (BGM)"),
                 Choice("subtitle", "📝 字幕 (Subtitle)"),
+                Choice("qc", "✅ 自动质量检测 (QC)"),
                 Choice("mediainfo", "📊 查看信息 (Media Info)"),
                 Separator(),
                 Choice("exit", "❌ 退出"),
@@ -925,6 +942,8 @@ def main():
                 menu_concat(videos)
             elif module == "bgm":
                 menu_add_bgm(videos)
+            elif module == "qc":
+                menu_qc(videos)
 
         print()
         if not inquirer.confirm(message="继续其他操作?", default=True).execute():

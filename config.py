@@ -21,6 +21,7 @@ OUTPUT_CROP = OUTPUT_DIR / "crop"
 OUTPUT_CONCAT = OUTPUT_DIR / "concat"
 OUTPUT_BGM = OUTPUT_DIR / "bgm"
 OUTPUT_SUBTITLE = OUTPUT_DIR / "subtitle"
+OUTPUT_QC = OUTPUT_DIR / "qc"
 
 # 音乐目录
 MUSIC_DIR = PROJECT_ROOT / "music"
@@ -75,13 +76,34 @@ UPSCALE_FACTOR = 2                      # 默认放大倍数 (2x / 4x)
 # 帧数补充
 INTERPOLATION_TARGET_FPS = 60           # 目标帧率
 
+# ============================================================
+# 自动质量检测 (QC) 默认阈值
+# ============================================================
+QC_MIN_WIDTH = 1280                     # 低于该宽度视为低清
+QC_MIN_HEIGHT = 720                     # 低于该高度视为低清
+QC_MIN_FPS = 23.0                       # 低于该帧率视为低帧率
+QC_MIN_AUDIO_SAMPLE_RATE = 44100        # 低于该采样率视为低采样率
+
+# 码率阈值 (bps), 按分辨率等级粗略判断
+QC_MIN_BITRATE_720P = 800_000
+QC_MIN_BITRATE_1080P = 2_500_000
+QC_MIN_BITRATE_4K = 8_000_000
+
+# 黑场 / 静音 / 冻结检测阈值 (秒)
+QC_BLACK_SEGMENT_WARN_SEC = 2.0
+QC_BLACK_TOTAL_WARN_SEC = 5.0
+QC_SILENCE_SEGMENT_WARN_SEC = 3.0
+QC_SILENCE_TOTAL_WARN_SEC = 10.0
+QC_FREEZE_SEGMENT_WARN_SEC = 2.0
+QC_FREEZE_TOTAL_WARN_SEC = 5.0
+
 
 def ensure_dirs():
     """确保所有必要目录存在"""
     for d in [INPUT_DIR, OUTPUT_WATERMARK,
               OUTPUT_ADD_WATERMARK, OUTPUT_UPSCALE, OUTPUT_INTERPOLATION,
               OUTPUT_CONVERT, OUTPUT_FILTER, OUTPUT_CROP, OUTPUT_CONCAT,
-              OUTPUT_BGM, OUTPUT_SUBTITLE, MUSIC_DIR]:
+              OUTPUT_BGM, OUTPUT_SUBTITLE, OUTPUT_QC, MUSIC_DIR]:
         d.mkdir(parents=True, exist_ok=True)
 
 
