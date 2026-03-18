@@ -4,7 +4,7 @@
 from pathlib import Path
 
 from config import INPUT_DIR, ensure_dirs
-from tools.common import batch_process, print_summary, scan_media
+from tools.common import resolve_media_files, run_batch
 from tools.filter.ffmpeg_filter import FILTER_PRESETS, apply_filter
 
 
@@ -24,15 +24,13 @@ def batch_filter(
         preset: 滤镜预设名称
         crf: 视频质量
     """
-    if files is None:
-        videos, images = scan_media(input_dir or INPUT_DIR)
-        files = videos + images
+    files = resolve_media_files(input_dir, files, kind="media", media_order="videos_first")
 
     preset_info = FILTER_PRESETS.get(preset, {})
     name = preset_info.get("name", preset)
     desc = f"批量滤镜 ({name})"
 
-    results = batch_process(
+    return run_batch(
         files,
         apply_filter,
         desc=desc,
@@ -40,8 +38,6 @@ def batch_filter(
         crf=crf,
         **kwargs,
     )
-    print_summary(results)
-    return results
 
 
 # ============================================================

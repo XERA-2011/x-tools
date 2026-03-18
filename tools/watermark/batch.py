@@ -8,7 +8,7 @@
 from pathlib import Path
 
 from config import INPUT_DIR, ensure_dirs
-from tools.common import batch_process, parse_region, print_summary, scan_videos
+from tools.common import parse_region, resolve_media_files, run_batch
 from tools.watermark.opencv_inpaint import remove_watermark_opencv
 
 
@@ -35,9 +35,8 @@ def batch_remove_watermark_opencv(
         inpaint_radius: 修复半径
         feather: 边缘羽化
     """
-    if videos is None:
-        videos = scan_videos(input_dir or INPUT_DIR)
-    results = batch_process(
+    videos = resolve_media_files(input_dir, videos, kind="video")
+    return run_batch(
         videos,
         remove_watermark_opencv,
         desc="批量去水印 (OpenCV)",
@@ -48,8 +47,6 @@ def batch_remove_watermark_opencv(
         ref_height=ref_height,
         **kwargs,
     )
-    print_summary(results)
-    return results
 
 
 def batch_remove_watermark_lama(
@@ -75,10 +72,9 @@ def batch_remove_watermark_lama(
         ref_height: ROI 坐标的参考分辨率高度 (0=不缩放)
         feather: 边缘羽化
     """
-    if videos is None:
-        videos = scan_videos(input_dir or INPUT_DIR)
+    videos = resolve_media_files(input_dir, videos, kind="video")
     from tools.watermark.lama_remover import remove_watermark_lama
-    results = batch_process(
+    return run_batch(
         videos,
         remove_watermark_lama,
         desc="批量去水印 (LaMA)",
@@ -89,8 +85,6 @@ def batch_remove_watermark_lama(
         ref_height=ref_height,
         **kwargs,
     )
-    print_summary(results)
-    return results
 
 
 # ============================================================

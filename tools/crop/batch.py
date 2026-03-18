@@ -4,7 +4,7 @@
 from pathlib import Path
 
 from config import INPUT_DIR, ensure_dirs
-from tools.common import batch_process, print_summary, scan_media
+from tools.common import resolve_media_files, run_batch
 from tools.crop.ffmpeg_crop import ASPECT_RATIOS, crop_media
 
 
@@ -24,13 +24,11 @@ def batch_crop(
         ratio: 目标比例
         crf: 视频质量
     """
-    if files is None:
-        videos, images = scan_media(input_dir or INPUT_DIR)
-        files = videos + images
+    files = resolve_media_files(input_dir, files, kind="media", media_order="videos_first")
 
     desc = f"批量裁切 ({ratio})"
 
-    results = batch_process(
+    return run_batch(
         files,
         crop_media,
         desc=desc,
@@ -38,8 +36,6 @@ def batch_crop(
         crf=crf,
         **kwargs,
     )
-    print_summary(results)
-    return results
 
 
 # ============================================================

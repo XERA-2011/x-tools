@@ -8,7 +8,7 @@
 from pathlib import Path
 
 from config import INPUT_DIR, UPSCALE_FACTOR, ensure_dirs
-from tools.common import batch_process, print_summary, scan_videos
+from tools.common import resolve_media_files, run_batch
 from tools.upscale.ffmpeg_scale import upscale_video_ffmpeg
 
 
@@ -33,15 +33,14 @@ def batch_upscale_ffmpeg(
         algorithm: 插值算法
         crf: 输出质量
     """
-    if videos is None:
-        videos = scan_videos(input_dir or INPUT_DIR)
+    videos = resolve_media_files(input_dir, videos, kind="video")
 
     if width and height:
         desc = f"批量放大 (FFmpeg → {width}x{height})"
     else:
         desc = f"批量放大 (FFmpeg {scale}x)"
 
-    results = batch_process(
+    return run_batch(
         videos,
         upscale_video_ffmpeg,
         desc=desc,
@@ -52,8 +51,6 @@ def batch_upscale_ffmpeg(
         crf=crf,
         **kwargs,
     )
-    print_summary(results)
-    return results
 
 
 def batch_upscale_realesrgan(
@@ -75,8 +72,7 @@ def batch_upscale_realesrgan(
         target_width: 目标宽度 (自动选择最佳 AI 倍数)
         target_height: 目标高度
     """
-    if videos is None:
-        videos = scan_videos(input_dir or INPUT_DIR)
+    videos = resolve_media_files(input_dir, videos, kind="video")
 
     if target_width and target_height:
         desc = f"批量超分 (Real-ESRGAN → {target_width}x{target_height})"
@@ -84,7 +80,7 @@ def batch_upscale_realesrgan(
         desc = f"批量超分 (Real-ESRGAN {scale or UPSCALE_FACTOR}x)"
 
     from tools.upscale.realesrgan import upscale_video_realesrgan
-    results = batch_process(
+    return run_batch(
         videos,
         upscale_video_realesrgan,
         desc=desc,
@@ -94,8 +90,6 @@ def batch_upscale_realesrgan(
         target_height=target_height,
         **kwargs,
     )
-    print_summary(results)
-    return results
 
 
 # ============================================================

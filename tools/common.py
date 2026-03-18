@@ -23,7 +23,7 @@ from rich.progress import (
     TimeRemainingColumn,
 )
 
-from config import FFMPEG_BIN, FFPROBE_BIN, IMAGE_EXTENSIONS, VIDEO_EXTENSIONS
+from config import FFMPEG_BIN, FFPROBE_BIN, IMAGE_EXTENSIONS, INPUT_DIR, VIDEO_EXTENSIONS
 
 # ============================================================
 # 日志配置
@@ -233,6 +233,36 @@ def scan_media(directory: str | Path, recursive: bool = False) -> tuple[list[Pat
     return scan_videos(directory, recursive), scan_images(directory, recursive)
 
 
+def resolve_media_files(
+    input_dir: str | Path | None,
+    files: list[Path] | None,
+    kind: str = "media",
+    media_order: str = "images_first",
+) -> list[Path]:
+    """
+    统一处理输入文件列表
+
+    Args:
+        input_dir: 输入目录 (None 时使用默认 INPUT_DIR)
+        files: 已指定文件列表 (优先使用)
+        kind: "media" (图片+视频) 或 "video" (仅视频)
+    """
+    if files is not None:
+        return files
+
+    base_dir = input_dir or INPUT_DIR
+    if kind == "video":
+        return scan_videos(base_dir)
+    if kind == "media":
+        videos, images = scan_media(base_dir)
+        if media_order == "videos_first":
+            return videos + images
+        if media_order == "images_first":
+            return images + videos
+        raise ValueError(f"未知 media_order: {media_order}")
+    raise ValueError(f"未知 kind: {kind}")
+
+
 # ============================================================
 # 批量执行器 (Rich Progress)
 # ============================================================
@@ -346,6 +376,25 @@ def print_summary(results: list[dict]):
     if total_time > 0:
         print(f"平均耗时: {avg_time:.1f}s / 文件")
     print("=" * 60)
+
+
+def run_batch(
+    files: list[Path],
+    process_fn: Callable,
+    desc: str,
+    **kwargs,
+) -> list[dict]:
+    """
+    统一批量处理入口，包含执行与摘要打印
+    """
+    results = batch_process(
+        files,
+        process_fn,
+        desc=desc,
+        **kwargs,
+    )
+    print_summary(results)
+    return results
 
 
 # ============================================================

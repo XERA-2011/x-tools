@@ -10,7 +10,7 @@
 from pathlib import Path
 
 from config import INPUT_DIR, ensure_dirs
-from tools.common import batch_process, print_summary, scan_media
+from tools.common import resolve_media_files, run_batch
 from tools.convert.ffmpeg_convert import ALL_FORMATS, convert_media
 
 
@@ -40,9 +40,7 @@ def batch_convert(
         copy_streams: 快速封装模式
         strip_audio: 去除音频模式
     """
-    if files is None:
-        videos, images = scan_media(input_dir or INPUT_DIR)
-        files = videos + images
+    files = resolve_media_files(input_dir, files, kind="media", media_order="videos_first")
 
     if copy_streams:
         desc = f"批量快速封装 (→ .{target_format})"
@@ -51,7 +49,7 @@ def batch_convert(
     else:
         desc = f"批量格式转换 (→ .{target_format})"
 
-    results = batch_process(
+    return run_batch(
         files,
         convert_media,
         desc=desc,
@@ -64,8 +62,6 @@ def batch_convert(
         strip_audio=strip_audio,
         **kwargs,
     )
-    print_summary(results)
-    return results
 
 
 # ============================================================
