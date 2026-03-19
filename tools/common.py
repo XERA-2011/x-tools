@@ -5,6 +5,7 @@ import json
 import logging
 import subprocess
 import time
+import uuid
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
@@ -64,7 +65,7 @@ def run_ffmpeg_with_progress(
 
     process = subprocess.Popen(
         cmd,
-        stdout=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,  # 避免 stdout 堵塞
         stderr=subprocess.PIPE,
         **popen_kwargs,
     )
@@ -132,11 +133,14 @@ def run_ffmpeg_with_progress(
 def generate_output_name(stem: str, suffix: str, tag: str = "") -> str:
     """
     生成带时间戳的输出文件名, 避免覆盖
-    格式: {stem}_{tag}_{MMDD_HHMMSS}{suffix}
+    格式: {stem}_{tag}_{MMDD_HHMMSS_mmm}_{rand}{suffix}
     """
-    timestamp = datetime.now().strftime("%m%d_%H%M%S")
+    now = datetime.now()
+    timestamp = now.strftime("%m%d_%H%M%S")
+    millis = f"{now.microsecond // 1000:03d}"
+    rand = uuid.uuid4().hex[:4]
     tag_part = f"_{tag}" if tag else ""
-    return f"{stem}{tag_part}_{timestamp}{suffix}"
+    return f"{stem}{tag_part}_{timestamp}_{millis}_{rand}{suffix}"
 
 
 # ============================================================
@@ -436,8 +440,10 @@ class VideoFrameProcessor:
         # 创建临时文件 (同目录下的隐藏文件)
         # 使用 tempfile 生成临时文件，但在 output_path 同级目录，避免跨盘符移动慢
         self.output_path.parent.mkdir(parents=True, exist_ok=True)
-        # 用 .tmp 后缀
-        self.temp_path = self.output_path.with_name(f".tmp_{self.output_path.name}")
+        # 用唯一临时名，避免并行或同名输出冲突
+        temp_suffix = self.output_path.suffix or ".mp4"
+        temp_name = f".tmp_{self.output_path.stem}_{uuid.uuid4().hex[:8]}{temp_suffix}"
+        self.temp_path = self.output_path.with_name(temp_name)
         
         return self
 

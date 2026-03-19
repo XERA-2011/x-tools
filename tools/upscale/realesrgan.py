@@ -18,6 +18,7 @@ Real-ESRGAN 视频超分辨率模块
 import subprocess
 import sys
 import tempfile
+import uuid
 from pathlib import Path
 
 from config import FFMPEG_BIN, OUTPUT_UPSCALE, UPSCALE_FACTOR
@@ -215,7 +216,7 @@ def upscale_video_realesrgan(
 
     actual_output = output_path
     if need_rescale:
-        ai_output = output_path.with_name(f".tmp_ai_{output_path.name}")
+        ai_output = output_path.with_name(f".tmp_ai_{output_path.stem}_{uuid.uuid4().hex[:8]}{output_path.suffix}")
     else:
         ai_output = output_path
 

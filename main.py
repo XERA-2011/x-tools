@@ -61,6 +61,21 @@ def _prompt_directory(recursive_default: bool = False) -> tuple[Path, bool]:
     return Path(path_str), recursive
 
 
+def _maybe_show_file_list(files: list[Path], message: str | None = None) -> None:
+    """可选展示待处理文件列表"""
+    prompt = message or f"是否查看将要处理的 {len(files)} 个文件列表?"
+    if inquirer.confirm(message=prompt, default=False).execute():
+        print("\n文件列表:")
+        for f in files:
+            print(f"  - {f.name}")
+        print()
+
+
+def _confirm_action(message: str, default: bool = True) -> bool:
+    """统一确认提示"""
+    return inquirer.confirm(message=message, default=default).execute()
+
+
 def get_input_videos() -> list[Path] | None:
     """获取待处理视频列表, 返回 None 表示用户选择返回"""
     mode = _prompt_input_mode()
@@ -228,7 +243,7 @@ def menu_watermark(videos: list[Path]):
             # 成功解析坐标, 跳出循环
             break
 
-    if inquirer.confirm(message=f"确认处理 {len(videos)} 个视频?", default=True).execute():
+    if _confirm_action(f"确认处理 {len(videos)} 个视频?"):
         if engine == "opencv":
             batch_remove_watermark_opencv(
                 videos=videos, regions=[(x1, y1, x2, y2)],
@@ -290,13 +305,9 @@ def menu_upscale(videos: list[Path]):
         if engine == "realesrgan":
             print(f"💡 将使用 AI 超分 + 精确缩放 → {target_width}x{target_height}")
 
-    if inquirer.confirm(message=f"是否查看将要处理的 {len(videos)} 个文件列表?", default=False).execute():
-        print("\n文件列表:")
-        for v in videos:
-            print(f"  - {v.name}")
-        print()
+    _maybe_show_file_list(videos)
 
-    if inquirer.confirm(message=f"确认放大 {len(videos)} 个视频?", default=True).execute():
+    if _confirm_action(f"确认放大 {len(videos)} 个视频?"):
         if engine == "ffmpeg":
             if target_width and target_height:
                 batch_upscale_ffmpeg(videos=videos, scale=None, width=target_width, height=target_height)
@@ -374,7 +385,7 @@ def menu_interpolate(videos: list[Path]):
             default=2
         ).execute())
 
-    if inquirer.confirm(message=f"确认处理 {len(videos)} 个视频?", default=True).execute():
+    if _confirm_action(f"确认处理 {len(videos)} 个视频?"):
         if engine == "ffmpeg":
             batch_interpolate_ffmpeg(
                 videos=videos, target_fps=target_fps,
@@ -433,13 +444,9 @@ def menu_add_watermark(media: list[Path]):
         wide_spacing = inquirer.confirm(message="是否拉开字间距?", default=True).execute()
         letter_spacing = font_size // 3 if wide_spacing else 0
 
-        if inquirer.confirm(message=f"是否查看将要处理的 {len(media)} 个文件列表?", default=False).execute():
-            print("\n文件列表:")
-            for v in media:
-                print(f"  - {v.name}")
-            print()
+        _maybe_show_file_list(media)
 
-        if inquirer.confirm(message=f"确认为 {len(media)} 个文件添加文字水印?", default=True).execute():
+        if _confirm_action(f"确认为 {len(media)} 个文件添加文字水印?"):
             batch_add_text_watermark(
                 files=media, text=text,
                 position=position, font_size=font_size, opacity=opacity,
@@ -466,13 +473,9 @@ def menu_add_watermark(media: list[Path]):
         scale = float(inquirer.text(message="Logo 大小比例 (0.0~1.0):", default="0.15").execute())
         opacity = float(inquirer.text(message="透明度 (0.0~1.0):", default="0.7").execute())
 
-        if inquirer.confirm(message=f"是否查看将要处理的 {len(media)} 个文件列表?", default=False).execute():
-            print("\n文件列表:")
-            for v in media:
-                print(f"  - {v.name}")
-            print()
+        _maybe_show_file_list(media)
 
-        if inquirer.confirm(message=f"确认为 {len(media)} 个文件添加 Logo 水印?", default=True).execute():
+        if _confirm_action(f"确认为 {len(media)} 个文件添加 Logo 水印?"):
             batch_add_image_watermark(
                 files=media, watermark_path=logo_path,
                 position=position, scale=scale, opacity=opacity,
@@ -526,13 +529,9 @@ def menu_convert(media: list[Path]):
         ).execute()
         video_codec = codec_choice
 
-    if inquirer.confirm(message=f"是否查看将要处理的 {len(media)} 个文件列表?", default=False).execute():
-        print("\n文件列表:")
-        for f in media:
-            print(f"  - {f.name}")
-        print()
+    _maybe_show_file_list(media)
 
-    if inquirer.confirm(message=f"确认转换 {len(media)} 个文件 → .{target_format}?", default=True).execute():
+    if _confirm_action(f"确认转换 {len(media)} 个文件 → .{target_format}?"):
         batch_convert(
             files=media,
             target_format=target_format,
@@ -599,7 +598,7 @@ def menu_crop(media: list[Path]):
         default="3:4",
     ).execute()
 
-    if inquirer.confirm(message=f"确认将 {len(media)} 个文件裁切为 {ratio}?", default=True).execute():
+    if _confirm_action(f"确认将 {len(media)} 个文件裁切为 {ratio}?"):
         batch_crop(files=media, ratio=ratio)
 
 
@@ -616,14 +615,10 @@ def menu_filter(media: list[Path]):
         default="cinematic",
     ).execute()
 
-    if inquirer.confirm(message=f"是否查看将要处理的 {len(media)} 个文件列表?", default=False).execute():
-        print("\n文件列表:")
-        for f in media:
-            print(f"  - {f.name}")
-        print()
+    _maybe_show_file_list(media)
 
     preset_name = FILTER_PRESETS[preset]["name"]
-    if inquirer.confirm(message=f"确认为 {len(media)} 个文件应用 {preset_name} 滤镜?", default=True).execute():
+    if _confirm_action(f"确认为 {len(media)} 个文件应用 {preset_name} 滤镜?"):
         batch_filter(files=media, preset=preset)
 
 
@@ -692,7 +687,7 @@ def menu_add_bgm(videos: list[Path]):
     else:
         audio_fade_in = audio_fade_out = float(audio_fade_choice)
 
-    if inquirer.confirm(message="确认添加背景音乐?", default=True).execute():
+    if _confirm_action("确认添加背景音乐?"):
         add_bgm_to_video(
             video_path=video_path,
             music_path=music_path,
