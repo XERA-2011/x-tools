@@ -173,6 +173,144 @@ def apply_filter(
 
 
 # ============================================================
+# 交互式预览
+# ============================================================
+def preview_filter(input_path: str | Path) -> None:
+    """
+    预览所有滤镜效果: 截取一帧, 应用全部滤镜, 拼成对比图弹窗展示。
+
+    Args:
+        input_path: 输入文件路径 (视频或图片)
+    """
+    import tempfile
+
+    input_path = Path(input_path)
+    if not input_path.is_file():
+        logger.warning(f"文件不存在: {input_path}")
+        return
+
+    suffix = input_path.suffix.lower()
+    is_image = suffix in IMAGE_EXTENSIONS
+    is_video = suffix in VIDEO_EXTENSIONS
+
+    if not is_image and not is_video:
+        logger.warning(f"不支持的文件格式: {suffix}")
+        return
+
+    with tempfile.TemporaryDirectory(prefix="xtools_preview_") as tmpdir:
+        tmpdir = Path(tmpdir)
+
+        # 1) 获取预览帧
+        if is_video:
+            frame_path = tmpdir / "frame.jpg"
+            cmd = [
+                FFMPEG_BIN, "-y",
+                "-i", str(input_path),
+                "-ss", "1",
+                "-frames:v", "1",
+                "-q:v", "2",
+                str(frame_path),
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode != 0 or not frame_path.is_file():
+                logger.warning("无法从视频截取帧")
+                return
+            sample = frame_path
+        else:
+            sample = input_path
+
+        # 2) 对帧应用所有滤镜
+        filtered: list[tuple[str, Path]] = [("原图", sample)]
+        for key, info in FILTER_PRESETS.items():
+            out = tmpdir / f"{key}.jpg"
+            cmd = [
+                FFMPEG_BIN, "-y",
+                "-i", str(sample),
+                "-vf", info["vf"],
+                "-q:v", "2",
+                str(out),
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode == 0 and out.is_file():
+                filtered.append((info["name"], out))
+
+        # 3) 用 Pillow 拼成网格
+        try:
+            from PIL import Image, ImageDraw, ImageFont
+        except ImportError:
+            logger.warning("Pillow 未安装，无法生成预览网格")
+            return
+
+        cols = 4
+        thumb_w = 400
+        label_h = 32
+        padding = 4
+        bg_color = (30, 30, 30)
+        label_bg = (24, 24, 24)
+        text_color = (240, 240, 240)
+
+        thumbs: list[tuple[str, Image.Image]] = []
+        for label, path in filtered:
+            img = Image.open(path).convert("RGB")
+            ratio = thumb_w / img.width
+            img = img.resize((thumb_w, int(img.height * ratio)), Image.LANCZOS)
+            thumbs.append((label, img))
+
+        thumb_h = thumbs[0][1].height
+        rows_count = -(-len(thumbs) // cols)
+        cell_w = thumb_w + padding
+        cell_h = thumb_h + label_h + padding
+
+        canvas = Image.new("RGB", (cols * cell_w + padding, rows_count * cell_h + padding), bg_color)
+        draw = ImageDraw.Draw(canvas)
+
+        try:
+            font = ImageFont.truetype("/System/Library/Fonts/PingFang.ttc", 18)
+        except OSError:
+            try:
+                font = ImageFont.truetype("/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc", 18)
+            except OSError:
+                font = ImageFont.load_default()
+
+        for idx, (label, thumb) in enumerate(thumbs):
+            row, col = divmod(idx, cols)
+            x = padding + col * cell_w
+            y = padding + row * cell_h
+            canvas.paste(thumb, (x, y))
+            ly = y + thumb_h
+            draw.rectangle([x, ly, x + thumb_w, ly + label_h], fill=label_bg)
+            bbox = draw.textbbox((0, 0), label, font=font)
+            tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+            draw.text((x + (thumb_w - tw) // 2, ly + (label_h - th) // 2),
+                      label, fill=text_color, font=font)
+
+        # 4) OpenCV 弹窗展示
+        try:
+            import cv2
+            import numpy as np
+
+            cv_img = cv2.cvtColor(np.array(canvas), cv2.COLOR_RGB2BGR)
+
+            # 缩放以适配屏幕
+            max_w, max_h = 1440, 900
+            h, w = cv_img.shape[:2]
+            scale = min(max_w / w, max_h / h, 1.0)
+            if scale < 1.0:
+                cv_img = cv2.resize(cv_img, (int(w * scale), int(h * scale)))
+
+            win = "Filter Preview - Press any key to close"
+            cv2.imshow(win, cv_img)
+            logger.info("📸 预览窗口已打开, 按任意键关闭...")
+            cv2.waitKey(0)
+            cv2.destroyAllWindows()
+        except Exception as e:
+            # 无 GUI 环境 fallback: 保存到临时文件并提示路径
+            preview_path = tmpdir / "preview.jpg"
+            canvas.save(str(preview_path), "JPEG", quality=90)
+            logger.warning(f"无法打开图形预览 ({e}), 已保存到: {preview_path}")
+
+
+# ============================================================
 # CLI 入口
 # ============================================================
 if __name__ == "__main__":

@@ -23,7 +23,7 @@ from tools.convert.batch import batch_convert
 from tools.convert.ffmpeg_convert import AUDIO_FORMATS, VIDEO_FORMATS
 from tools.crop.batch import batch_crop
 from tools.filter.batch import batch_filter
-from tools.filter.ffmpeg_filter import FILTER_PRESETS
+from tools.filter.ffmpeg_filter import FILTER_PRESETS, preview_filter
 from tools.interpolation.batch import batch_interpolate_ffmpeg, batch_interpolate_rife
 from tools.mediainfo.probe import display_batch_summary, display_info, get_detailed_info
 from tools.qc.auto_qc import batch_qc, display_qc_summary
@@ -604,6 +604,13 @@ def menu_crop(media: list[Path]):
 
 def menu_filter(media: list[Path]):
     """滤镜效果菜单"""
+    # 新增: 预览选项
+    want_preview = inquirer.confirm(
+        message="是否先预览所有滤镜效果?", default=False
+    ).execute()
+    if want_preview:
+        preview_filter(media[0])
+
     # 构建选项列表: 展示滤镜名称 + 描述
     filter_choices = [
         Choice(key, f"{info['name']}  {info['desc']}")
