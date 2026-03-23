@@ -604,23 +604,24 @@ def menu_crop(media: list[Path]):
 
 def menu_filter(media: list[Path]):
     """滤镜效果菜单"""
-    # 新增: 预览选项
-    want_preview = inquirer.confirm(
-        message="是否先预览所有滤镜效果?", default=False
-    ).execute()
-    if want_preview:
-        preview_filter(media[0])
+    # 直接在后台打开预览窗口
+    close_preview_fn = preview_filter(media[0])
 
-    # 构建选项列表: 展示滤镜名称 + 描述
-    filter_choices = [
-        Choice(key, f"{info['name']}  {info['desc']}")
-        for key, info in FILTER_PRESETS.items()
-    ]
+    # 构建选项列表: 展示滤镜名称 + 描述 + 对应序号 (方便对照)
+    filter_choices = []
+    for idx, (key, info) in enumerate(FILTER_PRESETS.items()):
+        # idx 对应生成的预览图上的数字: 0->2 (1 是原图)
+        filter_choices.append(Choice(key, f"[{idx + 2}] {info['name']}  {info['desc']}"))
+        
     preset = inquirer.select(
-        message="选择滤镜:",
+        message="选择滤镜 (可参考弹出的预览窗口):",
         choices=filter_choices,
         default="cinematic",
     ).execute()
+
+    # 用户选择完毕, 关闭预览窗口
+    if close_preview_fn is not None:
+        close_preview_fn()
 
     _maybe_show_file_list(media)
 

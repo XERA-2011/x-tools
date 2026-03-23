@@ -175,19 +175,24 @@ def apply_filter(
 # ============================================================
 # 交互式预览
 # ============================================================
-def preview_filter(input_path: str | Path) -> None:
+def preview_filter(input_path: str | Path):
     """
     预览所有滤镜效果: 截取一帧, 应用全部滤镜, 拼成对比图弹窗展示。
 
     Args:
         input_path: 输入文件路径 (视频或图片)
+    
+    Returns:
+        Callable: 关闭预览窗口的函数，如果失败则返回 None
     """
+    import shutil
     import tempfile
+    import threading
 
     input_path = Path(input_path)
     if not input_path.is_file():
         logger.warning(f"文件不存在: {input_path}")
-        return
+        return None
 
     suffix = input_path.suffix.lower()
     is_image = suffix in IMAGE_EXTENSIONS
@@ -195,119 +200,174 @@ def preview_filter(input_path: str | Path) -> None:
 
     if not is_image and not is_video:
         logger.warning(f"不支持的文件格式: {suffix}")
-        return
+        return None
 
-    with tempfile.TemporaryDirectory(prefix="xtools_preview_") as tmpdir:
-        tmpdir = Path(tmpdir)
+    # 手动管理临时目录, 在窗口关闭后清理
+    tmpdir = Path(tempfile.mkdtemp(prefix="xtools_preview_"))
 
-        # 1) 获取预览帧
-        if is_video:
-            frame_path = tmpdir / "frame.jpg"
-            cmd = [
-                FFMPEG_BIN, "-y",
-                "-i", str(input_path),
-                "-ss", "1",
-                "-frames:v", "1",
-                "-q:v", "2",
-                str(frame_path),
-            ]
-            result = subprocess.run(cmd, capture_output=True, text=True)
-            if result.returncode != 0 or not frame_path.is_file():
-                logger.warning("无法从视频截取帧")
-                return
-            sample = frame_path
-        else:
-            sample = input_path
+    # 1) 获取预览帧
+    if is_video:
+        frame_path = tmpdir / "frame.jpg"
+        cmd = [
+            FFMPEG_BIN, "-y",
+            "-i", str(input_path),
+            "-ss", "1",
+            "-frames:v", "1",
+            "-q:v", "2",
+            str(frame_path),
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0 or not frame_path.is_file():
+            logger.warning("无法从视频截取帧")
+            shutil.rmtree(tmpdir, ignore_errors=True)
+            return None
+        sample = frame_path
+    else:
+        sample = input_path
 
-        # 2) 对帧应用所有滤镜
-        filtered: list[tuple[str, Path]] = [("原图", sample)]
-        for key, info in FILTER_PRESETS.items():
-            out = tmpdir / f"{key}.jpg"
-            cmd = [
-                FFMPEG_BIN, "-y",
-                "-i", str(sample),
-                "-vf", info["vf"],
-                "-q:v", "2",
-                str(out),
-            ]
-            result = subprocess.run(cmd, capture_output=True, text=True)
-            if result.returncode == 0 and out.is_file():
-                filtered.append((info["name"], out))
+    # 2) 对帧应用所有滤镜
+    filtered: list[tuple[str, Path]] = [("原图", sample)]
+    for key, info in FILTER_PRESETS.items():
+        out = tmpdir / f"{key}.jpg"
+        cmd = [
+            FFMPEG_BIN, "-y",
+            "-i", str(sample),
+            "-vf", info["vf"],
+            "-q:v", "2",
+            str(out),
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode == 0 and out.is_file():
+            filtered.append((info["name"], out))
 
-        # 3) 用 Pillow 拼成网格
+    # 3) 用 Pillow 拼成网格
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+    except ImportError:
+        logger.warning("Pillow 未安装，无法生成预览网格")
+        shutil.rmtree(tmpdir, ignore_errors=True)
+        return None
+
+    cols = 4
+    thumb_w = 400
+    padding = 4
+    bg_color = (30, 30, 30)
+    text_color = (255, 255, 255)
+
+    # 大号数字字体, 叠加到缩略图左上角
+    font_size = 64
+    try:
+        font = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", font_size)
+    except OSError:
         try:
-            from PIL import Image, ImageDraw, ImageFont
-        except ImportError:
-            logger.warning("Pillow 未安装，无法生成预览网格")
-            return
-
-        cols = 4
-        thumb_w = 400
-        label_h = 32
-        padding = 4
-        bg_color = (30, 30, 30)
-        label_bg = (24, 24, 24)
-        text_color = (240, 240, 240)
-
-        thumbs: list[tuple[str, Image.Image]] = []
-        for label, path in filtered:
-            img = Image.open(path).convert("RGB")
-            ratio = thumb_w / img.width
-            img = img.resize((thumb_w, int(img.height * ratio)), Image.LANCZOS)
-            thumbs.append((label, img))
-
-        thumb_h = thumbs[0][1].height
-        rows_count = -(-len(thumbs) // cols)
-        cell_w = thumb_w + padding
-        cell_h = thumb_h + label_h + padding
-
-        canvas = Image.new("RGB", (cols * cell_w + padding, rows_count * cell_h + padding), bg_color)
-        draw = ImageDraw.Draw(canvas)
-
-        try:
-            font = ImageFont.truetype("/System/Library/Fonts/PingFang.ttc", 18)
+            font = ImageFont.truetype("/System/Library/Fonts/SFNSMono.ttf", font_size)
         except OSError:
+            font = ImageFont.load_default()
+
+    thumbs: list[Image.Image] = []
+    for idx, (label, path) in enumerate(filtered):
+        img = Image.open(path).convert("RGBA")
+        ratio = thumb_w / img.width
+        img = img.resize((thumb_w, int(img.height * ratio)), Image.LANCZOS)
+
+        # 左上角叠加序号
+        num = str(idx + 1)
+        overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        od = ImageDraw.Draw(overlay)
+        bbox = od.textbbox((0, 0), num, font=font)
+        tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+        badge_w, badge_h = tw + 24, th + 16
+        od.rounded_rectangle([8, 8, 8 + badge_w, 8 + badge_h],
+                             radius=10, fill=(0, 0, 0, 180))
+        od.text((8 + 12, 8 + 8), num, fill=text_color, font=font)
+        img = Image.alpha_composite(img, overlay).convert("RGB")
+
+        thumbs.append(img)
+
+    # 打印序号对照表到终端
+    logger.info("滤镜序号对照:")
+    for idx, (label, _) in enumerate(filtered):
+        logger.info(f"  {idx + 1:2d} → {label}")
+
+    thumb_h = thumbs[0].height
+    rows_count = -(-len(thumbs) // cols)
+    cell_w = thumb_w + padding
+    cell_h = thumb_h + padding
+
+    canvas = Image.new("RGB", (cols * cell_w + padding, rows_count * cell_h + padding), bg_color)
+
+    for idx, thumb in enumerate(thumbs):
+        row, col = divmod(idx, cols)
+        x = padding + col * cell_w
+        y = padding + row * cell_h
+        canvas.paste(thumb, (x, y))
+
+    # 4) 外部进程弹窗展示 (跳过 macOS 主线程限制)
+    try:
+        import sys
+        
+        # 预先缩放图片并保存
+        import cv2
+        import numpy as np
+
+        cv_img = cv2.cvtColor(np.array(canvas), cv2.COLOR_RGB2BGR)
+
+        max_w, max_h = 1920, 1080
+        h, w = cv_img.shape[:2]
+        scale = min(max_w / w, max_h / h, 1.0)
+        disp_w, disp_h = int(w * scale), int(h * scale)
+        if scale < 1.0:
+            cv_img = cv2.resize(cv_img, (disp_w, disp_h))
+
+        preview_path = tmpdir / "preview.jpg"
+        cv2.imwrite(str(preview_path), cv_img)
+        
+        # 写一个临时的脚本用于显示窗口
+        script_path = tmpdir / "show.py"
+        script_content = f"""
+import cv2
+import sys
+
+img = cv2.imread(r"{preview_path}")
+if img is None:
+    sys.exit(1)
+
+win = "Filter Preview - Please select in terminal"
+cv2.namedWindow(win, cv2.WINDOW_NORMAL)
+cv2.resizeWindow(win, {disp_w}, {disp_h})
+cv2.imshow(win, img)
+# 阻塞等待直到被主进程 kill 或用户手动关闭窗口
+while True:
+    cv2.waitKey(100)
+    try:
+        if cv2.getWindowProperty(win, cv2.WND_PROP_VISIBLE) < 1:
+            break
+    except:
+        break
+"""
+        script_path.write_text(script_content, encoding="utf-8")
+
+        # 启动外部进程
+        proc = subprocess.Popen([sys.executable, str(script_path)])
+        logger.info("📸 预览窗口已打开 (将在终端选择完成后自动关闭)...")
+
+        def close_preview():
+            import shutil
             try:
-                font = ImageFont.truetype("/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc", 18)
-            except OSError:
-                font = ImageFont.load_default()
+                proc.terminate()
+                proc.wait(timeout=2)
+            except Exception:
+                proc.kill()
+            shutil.rmtree(tmpdir, ignore_errors=True)
 
-        for idx, (label, thumb) in enumerate(thumbs):
-            row, col = divmod(idx, cols)
-            x = padding + col * cell_w
-            y = padding + row * cell_h
-            canvas.paste(thumb, (x, y))
-            ly = y + thumb_h
-            draw.rectangle([x, ly, x + thumb_w, ly + label_h], fill=label_bg)
-            bbox = draw.textbbox((0, 0), label, font=font)
-            tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
-            draw.text((x + (thumb_w - tw) // 2, ly + (label_h - th) // 2),
-                      label, fill=text_color, font=font)
+        return close_preview
 
-        # 4) OpenCV 弹窗展示
-        try:
-            import cv2
-            import numpy as np
-
-            cv_img = cv2.cvtColor(np.array(canvas), cv2.COLOR_RGB2BGR)
-
-            # 缩放以适配屏幕
-            max_w, max_h = 1440, 900
-            h, w = cv_img.shape[:2]
-            scale = min(max_w / w, max_h / h, 1.0)
-            if scale < 1.0:
-                cv_img = cv2.resize(cv_img, (int(w * scale), int(h * scale)))
-
-            win = "Filter Preview - Press any key to close"
-            cv2.imshow(win, cv_img)
-            logger.info("📸 预览窗口已打开, 按任意键关闭...")
-            cv2.waitKey(0)
-            cv2.destroyAllWindows()
-        except Exception as e:
-            # 无 GUI 环境 fallback: 保存到临时文件并提示路径
-            preview_path = tmpdir / "preview.jpg"
-            canvas.save(str(preview_path), "JPEG", quality=90)
-            logger.warning(f"无法打开图形预览 ({e}), 已保存到: {preview_path}")
+    except Exception as e:
+        # 无 GUI 环境 fallback: 保存到临时文件并提示路径
+        preview_path = tmpdir / "preview.jpg"
+        canvas.save(str(preview_path), "JPEG", quality=90)
+        logger.warning(f"无法打开图形预览 ({e}), 已保存到: {preview_path}")
+        return None
 
 
 # ============================================================
