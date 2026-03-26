@@ -2,7 +2,7 @@
 FFmpeg 滤镜效果模块
 
 功能:
-  - 8 种热门预设滤镜 (电影感/复古/赛博朋克/日系/黑白/暖色/冷色/高对比)
+  - 多种热门预设滤镜 (电影感/复古/赛博朋克/日系/黑白/暖色/冷色/高对比/徕卡/微距)
   - 支持视频和图片
   - 基于 FFmpeg 视频滤镜, 处理速度快
 
@@ -87,6 +87,19 @@ FILTER_PRESETS = {
               "curves=r='0/0 0.4/0.44 0.7/0.75 1/1':g='0/0 0.4/0.42 0.7/0.73 1/0.98':b='0/0.02 0.4/0.38 0.7/0.68 1/0.9',"
               "vignette=PI/5",
     },
+    "macro": {
+        "name": "🔬 微距",
+        "desc": "浅景深模拟, 中心锐利, 周边高斯模糊, 高饱和近距离观感",
+        # 使用 filter_complex: 中心保持锐利, 边缘渐变高斯模糊 (模拟浅景深)
+        # split→gblur + geq径向渐变遮罩→maskedmerge→色彩增强
+        "fc": "split=3[sharp][toblur][tomask];"
+              "[toblur]gblur=sigma=25[blurred];"
+              "[tomask]geq="
+              "lum='255*exp(-((X-W/2)*(X-W/2)+(Y-H/2)*(Y-H/2))/(0.16*W*H))':"
+              "cb=128:cr=128[mask];"
+              "[blurred][sharp][mask]maskedmerge,"
+              "eq=contrast=1.15:saturation=1.3:brightness=0.02[out]",
+    },
 }
 
 
@@ -119,7 +132,9 @@ def apply_filter(
         raise ValueError(f"未知滤镜: {preset} (可选: {available})")
 
     preset_info = FILTER_PRESETS[preset]
-    vf = preset_info["vf"]
+    use_fc = "fc" in preset_info  # 是否使用 filter_complex
+    vf = preset_info.get("vf", "")
+    fc = preset_info.get("fc", "")
 
     suffix = input_path.suffix.lower()
     is_image = suffix in IMAGE_EXTENSIONS
@@ -139,7 +154,19 @@ def apply_filter(
     # 构建 FFmpeg 命令
     cmd = [FFMPEG_BIN, "-y", "-i", str(input_path)]
 
-    if is_image:
+    if use_fc:
+        # 使用 filter_complex (复杂滤镜图, 如径向模糊)
+        if is_image:
+            cmd += ["-filter_complex", fc, "-map", "[out]", "-q:v", "2", str(output_path)]
+        else:
+            cmd += [
+                "-filter_complex", fc, "-map", "[out]", "-map", "0:a?",
+                "-c:v", "libx264", "-crf", str(crf), "-preset", "medium",
+                "-c:a", "copy",
+                "-movflags", "+faststart",
+                str(output_path),
+            ]
+    elif is_image:
         # 图片: 单帧处理
         cmd += ["-vf", vf, "-q:v", "2", str(output_path)]
     else:
@@ -229,13 +256,23 @@ def preview_filter(input_path: str | Path):
     filtered: list[tuple[str, Path]] = [("原图", sample)]
     for key, info in FILTER_PRESETS.items():
         out = tmpdir / f"{key}.jpg"
-        cmd = [
-            FFMPEG_BIN, "-y",
-            "-i", str(sample),
-            "-vf", info["vf"],
-            "-q:v", "2",
-            str(out),
-        ]
+        if "fc" in info:
+            cmd = [
+                FFMPEG_BIN, "-y",
+                "-i", str(sample),
+                "-filter_complex", info["fc"],
+                "-map", "[out]",
+                "-q:v", "2",
+                str(out),
+            ]
+        else:
+            cmd = [
+                FFMPEG_BIN, "-y",
+                "-i", str(sample),
+                "-vf", info["vf"],
+                "-q:v", "2",
+                str(out),
+            ]
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode == 0 and out.is_file():
             filtered.append((info["name"], out))
