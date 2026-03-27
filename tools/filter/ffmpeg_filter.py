@@ -2,13 +2,13 @@
 FFmpeg 滤镜效果模块
 
 功能:
-  - 多种热门预设滤镜 (电影感/复古/赛博朋克/日系/黑白/暖色/冷色/高对比/徕卡/微距)
+  - 预设滤镜 (高对比/徕卡M3/徕卡M9)
   - 支持视频和图片
   - 基于 FFmpeg 视频滤镜, 处理速度快
 
 使用方式:
-  python tools/filter/ffmpeg_filter.py video.mp4 -f cinematic
-  python tools/filter/ffmpeg_filter.py image.jpg -f vintage
+  python tools/filter/ffmpeg_filter.py video.mp4 -f high_contrast
+  python tools/filter/ffmpeg_filter.py image.jpg -f leica_m9
 """
 import subprocess
 from pathlib import Path
@@ -20,55 +20,26 @@ from tools.common import generate_output_name, logger
 # 预设滤镜定义
 # ============================================================
 FILTER_PRESETS = {
-    "cinematic": {
-        "name": "🎬 电影感",
-        "desc": "温暖色调, 略增对比, 暗角效果",
-        "vf": "eq=contrast=1.2:brightness=-0.03:saturation=1.1,"
-              "colorbalance=rs=0.06:gs=-0.02:bs=-0.08:rh=0.03:gh=-0.01:bh=-0.05,"
-              "vignette=PI/4",
-    },
-    "vintage": {
-        "name": "📷 复古胶片",
-        "desc": "褪色暖调, 降低饱和度, 柔和对比",
-        "vf": "eq=contrast=0.9:brightness=0.05:saturation=0.65,"
-              "colorbalance=rs=0.12:gs=0.05:bs=-0.08:rm=0.08:gm=0.03:bm=-0.05,"
-              "curves=m='0/0.05 0.5/0.48 1/0.92'",
-    },
-    "cyberpunk": {
-        "name": "🌆 赛博朋克",
-        "desc": "高对比, 青橙色调, 霓虹感",
-        "vf": "eq=contrast=1.4:saturation=1.3:brightness=-0.02,"
-              "colorbalance=rs=-0.08:gs=0.08:bs=0.2:rh=0.12:gh=-0.05:bh=0.15",
-    },
-    "japanese": {
-        "name": "🌸 日系清新",
-        "desc": "明亮通透, 低饱和, 柔和淡雅",
-        "vf": "eq=brightness=0.08:contrast=0.95:saturation=0.75,"
-              "colorbalance=rs=-0.03:gs=0.02:bs=0.08:rm=-0.02:gm=0.02:bm=0.06,"
-              "curves=m='0/0.03 0.5/0.55 1/1'",
-    },
-    "bw": {
-        "name": "⬛ 黑白经典",
-        "desc": "去色, 增强对比和细节",
-        "vf": "hue=s=0,eq=contrast=1.25:brightness=0.02",
-    },
-    "warm": {
-        "name": "🔥 暖色调",
-        "desc": "温暖金色氛围, 适合风景和人像",
-        "vf": "colorbalance=rs=0.12:gs=0.05:bs=-0.1:rm=0.1:gm=0.03:bm=-0.08:rh=0.05:gh=0.02:bh=-0.05,"
-              "eq=saturation=1.1:brightness=0.02",
-    },
-    "cool": {
-        "name": "❄️ 冷色调",
-        "desc": "冷蓝氛围, 适合都市和科技感",
-        "vf": "colorbalance=rs=-0.08:gs=0.02:bs=0.15:rm=-0.05:gm=0.02:bm=0.1:rh=-0.03:gh=0.01:bh=0.08,"
-              "eq=saturation=1.05:brightness=-0.02",
+    "saturate": {
+        "name": "🎨 高饱和",
+        "desc": "色彩浓郁鲜艳, 适度对比, 画面通透",
+        "vf": "eq=saturation=1.5:contrast=1.1:brightness=0.01,"
+              "curves=m='0/0 0.25/0.2 0.75/0.8 1/1',"
+              "colorbalance=rs=0.05:gs=0.03:bs=-0.03:rm=0.04:gm=0.02:bm=-0.02",
     },
     "high_contrast": {
         "name": "💎 高对比",
         "desc": "强烈对比, 色彩鲜明, 视觉冲击",
-        "vf": "eq=contrast=1.5:saturation=1.15:brightness=-0.03,"
-              "curves=m='0/0 0.25/0.15 0.75/0.85 1/1'",
+        "vf": "eq=contrast=1.2:saturation=1.1:brightness=-0.01,"
+              "curves=m='0/0 0.25/0.2 0.75/0.8 1/1',"
+              "colorbalance=rs=0.05:gs=0.03:bs=-0.03:rm=0.04:gm=0.02:bm=-0.02",
+    },
+    "vivid": {
+        "name": "🌈 高饱和高对比",
+        "desc": "极致鲜艳, 强烈对比, 色彩浓郁冲击力",
+        "vf": "eq=contrast=1.2:saturation=1.5:brightness=-0.01,"
+              "curves=m='0/0 0.25/0.2 0.75/0.8 1/1',"
+              "colorbalance=rs=0.05:gs=0.03:bs=-0.03:rm=0.04:gm=0.02:bm=-0.02",
     },
     "leica_m3": {
         "name": "📸 徕卡 M3",
@@ -87,26 +58,13 @@ FILTER_PRESETS = {
               "curves=r='0/0 0.4/0.44 0.7/0.75 1/1':g='0/0 0.4/0.42 0.7/0.73 1/0.98':b='0/0.02 0.4/0.38 0.7/0.68 1/0.9',"
               "vignette=PI/5",
     },
-    "macro": {
-        "name": "🔬 微距",
-        "desc": "浅景深模拟, 中心锐利, 周边高斯模糊, 高饱和近距离观感",
-        # 使用 filter_complex: 中心保持锐利, 边缘渐变高斯模糊 (模拟浅景深)
-        # split→gblur + geq径向渐变遮罩→maskedmerge→色彩增强
-        "fc": "split=3[sharp][toblur][tomask];"
-              "[toblur]gblur=sigma=25[blurred];"
-              "[tomask]geq="
-              "lum='255*exp(-((X-W/2)*(X-W/2)+(Y-H/2)*(Y-H/2))/(0.16*W*H))':"
-              "cb=128:cr=128[mask];"
-              "[blurred][sharp][mask]maskedmerge,"
-              "eq=contrast=1.15:saturation=1.3:brightness=0.02[out]",
-    },
 }
 
 
 def apply_filter(
     input_path: str | Path,
     output_path: str | Path | None = None,
-    preset: str = "cinematic",
+    preset: str = "high_contrast",
     intensity: float = 1.0,
     crf: int = 18,
 ) -> dict:
@@ -285,7 +243,7 @@ def preview_filter(input_path: str | Path):
         shutil.rmtree(tmpdir, ignore_errors=True)
         return None
 
-    cols = 4
+    cols = 3
     thumb_w = 400
     padding = 4
     bg_color = (30, 30, 30)
@@ -417,7 +375,7 @@ if __name__ == "__main__":
     parser.add_argument("input", help="输入文件路径 (视频或图片)")
     parser.add_argument("-o", "--output", help="输出路径")
     parser.add_argument(
-        "-f", "--filter", dest="preset", default="cinematic",
+        "-f", "--filter", dest="preset", default="high_contrast",
         help=f"滤镜预设 (可选: {', '.join(FILTER_PRESETS.keys())})",
     )
     parser.add_argument("--crf", type=int, default=18, help="视频质量 CRF (默认: 18)")

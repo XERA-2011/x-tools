@@ -49,16 +49,15 @@ def _prompt_input_mode() -> str:
     ).execute()
 
 
-def _prompt_directory(recursive_default: bool = False) -> tuple[Path, bool]:
-    """统一目录输入与递归选项"""
+def _prompt_directory() -> tuple[Path, bool]:
+    """统一目录输入"""
     path_str = inquirer.filepath(
         message="输入目录路径:",
         default=str(INPUT_DIR),
         validate=lambda x: Path(x).is_dir(),
         only_directories=True,
     ).execute()
-    recursive = inquirer.confirm(message="是否递归扫描子目录?", default=recursive_default).execute()
-    return Path(path_str), recursive
+    return Path(path_str), False
 
 
 def _maybe_show_file_list(files: list[Path], message: str | None = None) -> None:
@@ -84,8 +83,7 @@ def get_input_videos() -> list[Path] | None:
         return None
 
     if mode == "scan":
-        recursive = inquirer.confirm(message="是否递归扫描子目录?", default=False).execute()
-        videos = scan_videos(INPUT_DIR, recursive=recursive)
+        videos = scan_videos(INPUT_DIR, recursive=False)
         print(f"扫描到 {len(videos)} 个视频")
         return videos
 
@@ -113,8 +111,7 @@ def get_input_media() -> list[Path] | None:
         return None
 
     if mode == "scan":
-        recursive = inquirer.confirm(message="是否递归扫描子目录?", default=False).execute()
-        videos, images = scan_media(INPUT_DIR, recursive=recursive)
+        videos, images = scan_media(INPUT_DIR, recursive=False)
         files = images + videos
         print(f"扫描到 {len(images)} 个图片, {len(videos)} 个视频")
         return files
@@ -612,12 +609,18 @@ def menu_filter(media: list[Path]):
     for idx, (key, info) in enumerate(FILTER_PRESETS.items()):
         # idx 对应生成的预览图上的数字: 0->2 (1 是原图)
         filter_choices.append(Choice(key, f"[{idx + 2}] {info['name']}  {info['desc']}"))
-        
-    preset = inquirer.select(
-        message="选择滤镜 (可参考弹出的预览窗口):",
-        choices=filter_choices,
-        default="cinematic",
-    ).execute()
+
+    try:
+        preset = inquirer.select(
+            message="选择滤镜 (可参考弹出的预览窗口):",
+            choices=filter_choices,
+            default="high_contrast",
+        ).execute()
+    except KeyboardInterrupt:
+        # 用户取消, 关闭预览窗口后向上传播异常
+        if close_preview_fn is not None:
+            close_preview_fn()
+        raise
 
     # 用户选择完毕, 关闭预览窗口
     if close_preview_fn is not None:

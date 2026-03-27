@@ -7,7 +7,7 @@
   python scripts/generate_filter_preview.py --sample docs/assets/my_photo.jpg
 
 功能:
-  对样图分别应用 10 种滤镜预设, 拼成 4×3 网格对比图,
+  对样图分别应用 3 种滤镜预设, 拼成 2×2 网格对比图,
   输出到 docs/assets/filter_preview.jpg
 """
 import subprocess
@@ -27,7 +27,7 @@ from tools.filter.ffmpeg_filter import FILTER_PRESETS
 # ============================================================
 DEFAULT_SAMPLE = PROJECT_ROOT / "docs" / "assets" / "filter_sample.png"
 OUTPUT_PATH = PROJECT_ROOT / "docs" / "assets" / "filter_preview.jpg"
-COLS = 4
+COLS = 2
 THUMB_WIDTH = 480           # 每个缩略图宽度 (px)
 LABEL_HEIGHT = 36           # 标签区域高度
 FONT_SIZE = 20
@@ -58,7 +58,7 @@ def generate_preview(sample_path: Path | None = None):
         print(f"❌ 样图不存在: {sample}")
         sys.exit(1)
 
-    # 准备所有项: 原图 + 10 滤镜
+    # 准备所有项: 原图 + 3 滤镜
     items: list[tuple[str, str, Path | None]] = [
         ("原图", "Original", None),
     ]
