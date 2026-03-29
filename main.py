@@ -53,7 +53,7 @@ def _prompt_directory() -> tuple[Path, bool]:
     """统一目录输入"""
     path_str = inquirer.filepath(
         message="输入目录路径:",
-        default=str(INPUT_DIR),
+        default="",
         validate=lambda x: Path(x).is_dir(),
         only_directories=True,
     ).execute()
