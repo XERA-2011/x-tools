@@ -46,7 +46,7 @@ def apply_filter_to_image(input_path: Path, output_path: Path, vf: str) -> bool:
         "-q:v", "2",
         str(output_path),
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
     return result.returncode == 0
 
 

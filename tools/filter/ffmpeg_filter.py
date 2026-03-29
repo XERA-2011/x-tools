@@ -201,7 +201,7 @@ def preview_filter(input_path: str | Path):
             "-q:v", "2",
             str(frame_path),
         ]
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
         if result.returncode != 0 or not frame_path.is_file():
             logger.warning("无法从视频截取帧")
             shutil.rmtree(tmpdir, ignore_errors=True)
@@ -231,7 +231,7 @@ def preview_filter(input_path: str | Path):
                 "-q:v", "2",
                 str(out),
             ]
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
         if result.returncode == 0 and out.is_file():
             filtered.append((info["name"], out))
 
