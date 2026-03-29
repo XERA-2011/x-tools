@@ -835,6 +835,20 @@ def menu_subtitle(media: list[Path]):
             default=None,
         ).execute()
 
+        # 双语字幕
+        bilingual = inquirer.confirm(message="是否生成双语字幕?", default=True).execute()
+        target_lang = None
+        if bilingual:
+            # 默认翻译目标语言：中文
+            target_lang = inquirer.select(
+                message="翻译目标语言:",
+                choices=[
+                    Choice("zh", "🇨🇳 中文"),
+                    Choice("en", "🇬🇧 英语"),
+                ],
+                default="zh",
+            ).execute()
+
     if mode == "burn":
         # 烧录模式: 需要指定 .srt 文件
         srt_path = inquirer.filepath(
@@ -850,7 +864,7 @@ def menu_subtitle(media: list[Path]):
         style = inquirer.select(
             message="字幕样式:",
             choices=style_choices,
-            default="default",
+            default="large",
         ).execute()
 
     if mode == "tts":
@@ -874,14 +888,16 @@ def menu_subtitle(media: list[Path]):
         print(f"\n📹 处理: {v.name}")
 
         if mode == "auto":
-            transcribe_video(v, model_name=model_name, language=lang)
+            transcribe_video(v, model_name=model_name, language=lang,
+                             bilingual=bilingual, target_lang=target_lang)
 
         elif mode == "burn":
             burn_subtitles(v, subtitle_path=srt_path, style=style)
 
         elif mode == "oneclick":
             # 先识别
-            result = transcribe_video(v, model_name=model_name, language=lang)
+            result = transcribe_video(v, model_name=model_name, language=lang,
+                                      bilingual=bilingual, target_lang=target_lang)
             srt_file = result["output"]
             # 再烧录
             burn_subtitles(v, subtitle_path=srt_file, style=style)

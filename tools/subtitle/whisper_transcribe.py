@@ -49,7 +49,7 @@ def _format_timestamp(seconds: float) -> str:
 
 
 def _segments_to_srt(segments: list, language: str = "") -> str:
-    """将 Whisper segments 转为 SRT 格式文本"""
+    """将 Whisper segments 转为 SRT 格式文本 (支持双语)"""
     # 如果语言是中文，尝试使用 zhconv 转换为简体
     use_zhconv = False
     if language in ["zh", "chinese"]:
@@ -67,8 +67,16 @@ def _segments_to_srt(segments: list, language: str = "") -> str:
         
         if use_zhconv and text:
             text = zhconv.convert(text, "zh-cn")
-            
-        if text:
+
+        if not text:
+            continue
+
+        # 双语模式: segments 中含有 translated_text 字段
+        translated = seg.get("translated_text", "").strip()
+        if translated and translated != text:
+            # 翻译后语言作为主要语言显示 (第一行)，原文作为次要语言 (第二行)
+            lines.append(f"{i}\n{start} --> {end}\n{translated}\n{text}\n")
+        else:
             lines.append(f"{i}\n{start} --> {end}\n{text}\n")
     return "\n".join(lines)
 
@@ -78,6 +86,8 @@ def transcribe_video(
     output_path: str | Path | None = None,
     model_name: str = "small",
     language: str | None = None,
+    bilingual: bool = False,
+    target_lang: str | None = None,
 ) -> dict:
     """
     使用 Whisper 识别视频语音并生成 SRT 字幕文件
@@ -87,6 +97,8 @@ def transcribe_video(
         output_path: 字幕输出路径 (默认自动生成)
         model_name: Whisper 模型 (tiny/base/small/medium/large)
         language: 语言代码 (None=自动检测, "zh"=中文, "en"=英语, "ja"=日语)
+        bilingual: 是否生成双语字幕
+        target_lang: 双语模式下的翻译目标语言 (如 "zh", "en")
 
     Returns:
         dict: {"output": str, "language": str, "segments": int}
@@ -131,13 +143,40 @@ def transcribe_video(
         # 4. 生成 SRT
         detected_lang = result.get("language", "unknown")
         segments = result.get("segments", [])
+
+        # 双语模式: 为每条 segment 添加翻译
+        if bilingual and target_lang and segments:
+            _effective_src = language or detected_lang
+            _effective_tgt = target_lang
+
+            # 优先尝试 Whisper 离线翻译 (仅支持 X→英文)
+            if _effective_tgt in ("en", "english") and _effective_src not in ("en", "english"):
+                logger.info("使用 Whisper 离线翻译 → 英文")
+                translate_opts = {"verbose": False, "task": "translate"}
+                if language:
+                    translate_opts["language"] = language
+                translate_result = model.transcribe(str(audio_path), **translate_opts)
+                en_segments = translate_result.get("segments", [])
+                # 将英文翻译合并到原始 segments
+                for orig, trans in zip(segments, en_segments):
+                    orig["translated_text"] = trans.get("text", "").strip()
+            else:
+                # 在线翻译引擎 (自动降级)
+                logger.info(f"在线翻译: {_effective_src} → {_effective_tgt}")
+                from tools.subtitle.translate import translate_segments
+                segments = translate_segments(segments, _effective_src, _effective_tgt)
+
         srt_content = _segments_to_srt(segments, language=detected_lang)
 
         output_path.write_text(srt_content, encoding="utf-8")
 
+        lang_info = detected_lang
+        if bilingual and target_lang:
+            lang_info = f"{detected_lang}+{target_lang}"
+
         logger.info(
             f"✅ 字幕生成完成: {output_path.name} "
-            f"({len(segments)} 条, 语言: {detected_lang})"
+            f"({len(segments)} 条, 语言: {lang_info})"
         )
 
         return {

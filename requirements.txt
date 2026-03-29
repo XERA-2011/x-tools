@@ -9,6 +9,7 @@ opencv-python>=4.8.0
 rich>=13.0.0           # Rich terminal output
 InquirerPy>=0.3.4      # Interactive terminal menu
 Pillow>=10.0.0         # Image processing (watermark, CJK text)
+deep-translator>=1.11.0  # Multi-engine translation (bilingual subtitles)
 
 # ============================================================
 # AI Models (Phase 3/4, uncomment to install)

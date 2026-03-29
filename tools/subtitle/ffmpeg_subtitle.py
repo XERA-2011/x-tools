@@ -91,6 +91,18 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     srt_text = srt_path.read_text(encoding="utf-8")
     blocks = re.split(r"\n\n+", srt_text.strip())
 
+    # 从样式行中提取当前字号, 用于计算译文缩小比例
+    _main_fontsize = 45  # 默认
+    _style_vals = style_line.split(":")
+    if len(_style_vals) == 2:
+        _sv = _style_vals[1].split(",")
+        if len(_sv) >= 3:
+            try:
+                _main_fontsize = int(_sv[2])
+            except ValueError:
+                pass
+    _sub_fontsize = max(int(_main_fontsize * 0.7), 14)  # 译文字号为主字号的 70%
+
     events = []
     for block in blocks:
         lines = block.strip().split("\n")
@@ -104,9 +116,20 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
         start = f"{time_match.group(1)}.{time_match.group(2)[:2]}"
         end = f"{time_match.group(3)}.{time_match.group(4)[:2]}"
-        text = "\\N".join(lines[2:])  # ASS 换行用 \N
 
-        events.append(f"Dialogue: 0,{start},{end},Default,,0,0,0,,{text}")
+        # 检测双语字幕: 文本部分 >= 2 行
+        text_lines = lines[2:]
+        if len(text_lines) >= 2:
+            # 双语模式: 第一行原文, 第二行译文 (缩小字号 + 半透明)
+            primary = text_lines[0].strip()
+            secondary = text_lines[1].strip()
+            # ASS 内联样式: 译文使用较小字号 + 稍透明的颜色
+            text = f"{primary}\\N{{\\fs{_sub_fontsize}\\1a&H40&}}{secondary}"
+        else:
+            text = text_lines[0].strip()
+
+        if text:
+            events.append(f"Dialogue: 0,{start},{end},Default,,0,0,0,,{text}")
 
     ass_content = header + "\n".join(events) + "\n"
     ass_path.write_text(ass_content, encoding="utf-8")
