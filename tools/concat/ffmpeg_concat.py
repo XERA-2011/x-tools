@@ -58,6 +58,7 @@ def concat_videos(
     trim_end: float = 0.0,
     audio_fade_in: float = 0.0,
     audio_fade_out: float = 0.0,
+    mute_audio: bool = False,
 ) -> dict:
     """
     拼接多个视频为一个
@@ -69,10 +70,11 @@ def concat_videos(
         music_volume: 背景音乐音量 (0.0~1.0, 默认 0.3)
         keep_original_audio: 是否保留原视频声音 (True=混合, False=替换)
         crf: 视频质量
-        trim_start: 裁剪每个视频开头的秒数 (默认 0.0)
-        trim_end: 裁剪每个视频结尾的秒数 (默认 0.0)
-        audio_fade_in: 首尾音频淡入时长 (默认 0.0, 移除拼接爆音)
-        audio_fade_out: 首尾音频淡出时长 (默认 0.0)
+        trim_start: float,
+        trim_end: float,
+        audio_fade_in: 首尾音频淡入时长 (秒)
+        audio_fade_out: 首尾音频淡出时长 (秒)
+        mute_audio: 是否拼接后输出静音视频
 
     Returns:
         dict: {"output": str, "duration": float, ...}
@@ -142,7 +144,10 @@ def concat_videos(
     # 构建 filter_complex
     xfade_type = TRANSITION_PRESETS.get(transition, {}).get("xfade")
     td = transition_duration
-    include_audio = (music_path is None or keep_original_audio)
+    if mute_audio:
+        include_audio = False
+    else:
+        include_audio = (music_path is None or keep_original_audio)
     filter_parts, durations, _raw_durations = build_base_filters(
         video_paths=video_paths,
         target_w=target_w,
@@ -199,12 +204,19 @@ def concat_videos(
     else:
         # 无 BGM: 用拼接后的原声
         cmd += ["-filter_complex", ";".join(filter_parts)]
-        cmd += ["-map", "[outv]", "-map", "[outa]"]
+        if include_audio:
+            cmd += ["-map", "[outv]", "-map", "[outa]"]
+        else:
+            cmd += ["-map", "[outv]"]
 
     # 编码参数
     cmd += [
         "-c:v", "libx264", "-crf", str(crf), "-preset", "medium",
-        "-c:a", "aac", "-b:a", "192k",
+    ]
+    if include_audio or music_path is not None:
+        cmd += ["-c:a", "aac", "-b:a", "192k"]
+        
+    cmd += [
         "-movflags", "+faststart",
         "-shortest",
         str(output_path),
@@ -250,6 +262,7 @@ if __name__ == "__main__":
     parser.add_argument("-m", "--music", help="背景音乐路径")
     parser.add_argument("--music-volume", type=float, default=0.3, help="音乐音量 (0.0~1.0)")
     parser.add_argument("--keep-audio", action="store_true", help="保留原视频声音")
+    parser.add_argument("--mute", action="store_true", help="拼接后消音")
     parser.add_argument("--crf", type=int, default=18, help="视频质量 CRF")
 
     args = parser.parse_args()
@@ -260,6 +273,7 @@ if __name__ == "__main__":
         music_volume=args.music_volume,
         keep_original_audio=args.keep_audio,
         crf=args.crf,
+        mute_audio=args.mute,
     )
     print(f"\n✅ 拼接完成: {result['video_count']} 个视频 → {result['duration']:.1f}s ({result['size_mb']} MB)")
     print(f"   输出: {result['output']}")

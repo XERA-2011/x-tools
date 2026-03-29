@@ -756,22 +756,26 @@ def menu_concat(videos: list[Path]):
     elif trim_choice != "0":
         trim_start = trim_end = float(trim_choice)
 
-    # 音频过渡 (避免接缝爆音)
+    # 音频过渡 (避免接缝爆音) 或静音
+    mute_audio = False
     audio_fade_choice = inquirer.select(
-        message="是否进行音频平滑(淡入淡出), 防止拼接处突兀/破音?",
+        message="如何处理音频?",
         choices=[
-            Choice("0", "🔊 保持原声不变"),
+            Choice("2.0", "🔉 默认 (保留原声，平滑过渡 2 秒，推荐)"),
+            Choice("0", "🔊 保持原声不变 (直接拼接)"),
             Choice("1.0", "🔉 平滑过渡 1 秒"),
-            Choice("2.0", "🔉 平滑过渡 2 秒 (推荐)"),
             Choice("3.0", "🔉 平滑过渡 3 秒"),
-            Choice("custom", "✏️  自定义"),
+            Choice("custom", "✏️  自定义过渡"),
+            Choice("mute", "🔇 消除原声 (静音输出)"),
         ],
         default="2.0",
     ).execute()
     
     audio_fade_in = 0.0
     audio_fade_out = 0.0
-    if audio_fade_choice == "custom":
+    if audio_fade_choice == "mute":
+        mute_audio = True
+    elif audio_fade_choice == "custom":
         audio_fade_in = float(inquirer.text(message="音频首部淡入 (秒):").execute())
         audio_fade_out = float(inquirer.text(message="音频尾部淡出 (秒):").execute())
     else:
@@ -786,6 +790,7 @@ def menu_concat(videos: list[Path]):
             trim_end=trim_end,
             audio_fade_in=audio_fade_in,
             audio_fade_out=audio_fade_out,
+            mute_audio=mute_audio,
         )
 
 
