@@ -32,7 +32,7 @@ from tools.subtitle.whisper_transcribe import WHISPER_MODELS, transcribe_video
 from tools.upscale.batch import batch_upscale_ffmpeg, batch_upscale_realesrgan
 
 # 引入各个批量处理去水、超分等函数
-from tools.watermark.batch import batch_remove_watermark_lama, batch_remove_watermark_opencv
+from tools.watermark.batch import batch_remove_watermark_delogo, batch_remove_watermark_lama, batch_remove_watermark_opencv
 from tools.compress.batch import batch_compress
 
 
@@ -138,11 +138,13 @@ def menu_watermark(videos: list[Path]):
     engine = inquirer.select(
         message="选择去水印引擎:",
         choices=[
-            Choice("opencv", "🔧 OpenCV (传统算法, 快速, 适合简单水印)"),
-            Choice("lama", "🧠 LaMA (深度学习, 慢, 效果好, 适合复杂水印)"),
+            Choice("delogo", "⚡ FFmpeg delogo (快速推荐, 适合固定位置 Logo)"),
+            Choice("opencv", "🔧 OpenCV (传统算法, 中速)"),
+            Choice("lama", "🧠 LaMA (深度学习, 慢, 效果最好)"),
             Separator(),
             Choice("back", "⬅️  返回上一级"),
         ],
+        default="delogo",
     ).execute()
 
     if engine == "back":
@@ -244,6 +246,11 @@ def menu_watermark(videos: list[Path]):
     if _confirm_action(f"确认处理 {len(videos)} 个视频?"):
         if engine == "opencv":
             batch_remove_watermark_opencv(
+                videos=videos, regions=[(x1, y1, x2, y2)],
+                ref_width=ref_width, ref_height=ref_height,
+            )
+        elif engine == "delogo":
+            batch_remove_watermark_delogo(
                 videos=videos, regions=[(x1, y1, x2, y2)],
                 ref_width=ref_width, ref_height=ref_height,
             )

@@ -3,12 +3,14 @@
 
 支持:
   - 批量 OpenCV 去水印 (同一水印位置)
+  - 批量 FFmpeg delogo 去水印 (快速, 同一水印位置)
   - 批量 LaMA 去水印 (同一水印位置)
 """
 from pathlib import Path
 
 from config import INPUT_DIR, OUTPUT_WATERMARK, ensure_dirs
 from tools.common import parse_region, resolve_media_files, run_batch
+from tools.watermark.ffmpeg_delogo import remove_watermark_delogo
 from tools.watermark.opencv_inpaint import remove_watermark_opencv
 
 
@@ -46,6 +48,39 @@ def batch_remove_watermark_opencv(
         method=method,
         ref_width=ref_width,
         ref_height=ref_height,
+        **kwargs,
+    )
+
+
+def batch_remove_watermark_delogo(
+    input_dir: str | Path | None = None,
+    videos: list[Path] | None = None,
+    regions: list[tuple[int, int, int, int]] | None = None,
+    ref_width: int = 0,
+    ref_height: int = 0,
+    crf: int = 18,
+    **kwargs,
+) -> list[dict]:
+    """
+    批量去水印 (FFmpeg delogo) — 快速、纯 C 流水线
+
+    Args:
+        input_dir: 输入目录
+        regions: 水印区域列表
+        ref_width: ROI 坐标的参考分辨率宽度
+        ref_height: ROI 坐标的参考分辨率高度
+        crf: 输出质量
+    """
+    videos = resolve_media_files(input_dir, videos, kind="video")
+    return run_batch(
+        videos,
+        remove_watermark_delogo,
+        desc="批量去水印 (FFmpeg delogo)",
+        base_output_dir=OUTPUT_WATERMARK,
+        regions=regions,
+        ref_width=ref_width,
+        ref_height=ref_height,
+        crf=crf,
         **kwargs,
     )
 
