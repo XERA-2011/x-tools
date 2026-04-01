@@ -23,23 +23,17 @@ FILTER_PRESETS = {
     "saturate": {
         "name": "🎨 高饱和",
         "desc": "色彩浓郁鲜艳, 适度对比, 画面通透",
-        "vf": "eq=saturation=1.5:contrast=1.1:brightness=0.01,"
-              "curves=m='0/0 0.25/0.2 0.75/0.8 1/1',"
-              "colorbalance=rs=0.05:gs=0.03:bs=-0.03:rm=0.04:gm=0.02:bm=-0.02",
+        "vf": "eq=saturation=1.1:contrast=1.0:brightness=0.01",
     },
     "high_contrast": {
         "name": "💎 高对比",
         "desc": "强烈对比, 色彩鲜明, 视觉冲击",
-        "vf": "eq=contrast=1.2:saturation=1.1:brightness=-0.01,"
-              "curves=m='0/0 0.25/0.2 0.75/0.8 1/1',"
-              "colorbalance=rs=0.05:gs=0.03:bs=-0.03:rm=0.04:gm=0.02:bm=-0.02",
+        "vf": "eq=contrast=1.05:saturation=1.0:brightness=-0.01",
     },
     "vivid": {
         "name": "🌈 高饱和高对比",
         "desc": "极致鲜艳, 强烈对比, 色彩浓郁冲击力",
-        "vf": "eq=contrast=1.2:saturation=1.5:brightness=-0.01,"
-              "curves=m='0/0 0.25/0.2 0.75/0.8 1/1',"
-              "colorbalance=rs=0.05:gs=0.03:bs=-0.03:rm=0.04:gm=0.02:bm=-0.02",
+        "vf": "eq=contrast=1.05:saturation=1.1:brightness=-0.01",
     },
     "leica_m3": {
         "name": "📸 徕卡 M3",
