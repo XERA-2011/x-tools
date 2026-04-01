@@ -33,6 +33,7 @@ from tools.upscale.batch import batch_upscale_ffmpeg, batch_upscale_realesrgan
 
 # 引入各个批量处理去水、超分等函数
 from tools.watermark.batch import batch_remove_watermark_lama, batch_remove_watermark_opencv
+from tools.compress.batch import batch_compress
 
 
 def _prompt_input_mode() -> str:
@@ -912,6 +913,32 @@ def menu_subtitle(media: list[Path]):
             dub_video_with_tts(v, srt_path=srt_path, voice_key=voice_key)
 
 
+def menu_compress(videos: list[Path]):
+    """无损/视觉无损压缩菜单"""
+    codec = inquirer.select(
+        message="视频编码器:",
+        choices=[
+            Choice("libx264", "🔧 H.264 (兼容各类主流媒体平台, 稳定推荐)"),
+            Choice("libx265", "🚀 H.265 (HEVC, 极致体积, 部分旧设备或环境可能不兼容)"),
+        ],
+        default="libx264",
+    ).execute()
+    
+    strength = inquirer.select(
+        message="压缩强度:",
+        choices=[
+            Choice(24, "🌟 标准平衡 (视觉几乎无损, 适合上传抖音/视频号等)"),
+            Choice(28, "🗜️  体积极限 (画质极轻微降低, 体积最小化)"),
+            Choice(18, "💎 极致高保真 (接近原画大小, 适合高清存档)"),
+        ],
+        default=24,
+    ).execute()
+
+    _maybe_show_file_list(videos)
+    if _confirm_action(f"确认压缩 {len(videos)} 个视频?"):
+        batch_compress(files=videos, codec=codec, crf=strength)
+
+
 def _check_ffmpeg():
     """检测 FFmpeg 是否可用"""
     if not shutil.which(FFMPEG_BIN):
@@ -935,6 +962,7 @@ def main():
             choices=[
                 Choice("watermark", "💧 去水印 (Watermark)"),
                 Choice("add_watermark", "🏷️  增加水印 (Add Watermark)"),
+                Choice("compress", "🗜️  无损压缩 (Compress)"),
                 Choice("upscale", "🆙 高清重置 (Upscale)"),
                 Choice("interpolate", "⏯️  帧数补充 (Interpolate)"),
                 Choice("convert", "🔄 格式转换 (Convert)"),
@@ -995,6 +1023,8 @@ def main():
                 menu_add_bgm(videos)
             elif module == "qc":
                 menu_qc(videos)
+            elif module == "compress":
+                menu_compress(videos)
 
         print()
         if not inquirer.confirm(message="继续其他操作?", default=True).execute():
