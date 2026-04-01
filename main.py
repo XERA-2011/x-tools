@@ -614,7 +614,7 @@ def menu_filter(media: list[Path]):
         preset = inquirer.select(
             message="选择滤镜 (可参考弹出的预览窗口):",
             choices=filter_choices,
-            default="high_contrast",
+            default="saturate",
         ).execute()
     except KeyboardInterrupt:
         # 用户取消, 关闭预览窗口后向上传播异常
