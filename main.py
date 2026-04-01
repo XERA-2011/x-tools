@@ -14,7 +14,7 @@ from InquirerPy import inquirer
 from InquirerPy.base.control import Choice
 from InquirerPy.separator import Separator
 
-from config import ADD_WATERMARK_TEXT, FFMPEG_BIN, INPUT_DIR, WATERMARK_BRAND_PRESETS, ensure_dirs
+from config import ADD_WATERMARK_TEXT, FFMPEG_BIN, INPUT_DIR, OUTPUT_DIR, WATERMARK_BRAND_PRESETS, ensure_dirs
 from tools.add_watermark.batch import batch_add_image_watermark, batch_add_text_watermark
 from tools.bgm.ffmpeg_bgm import add_bgm_to_video
 from tools.common import scan_media, scan_videos
@@ -946,6 +946,72 @@ def menu_compress(videos: list[Path]):
         batch_compress(files=videos, codec=codec, crf=strength)
 
 
+def menu_clean():
+    """清理 input 和 output 目录菜单"""
+    target = inquirer.select(
+        message="选择清理范围:",
+        choices=[
+            Choice("all", "🗑️  清理全部 (input + output)"),
+            Choice("input", "📥 仅清理 input"),
+            Choice("output", "📤 仅清理 output"),
+            Separator(),
+            Choice("back", "⬅️  返回上一级"),
+        ],
+    ).execute()
+
+    if target == "back":
+        return
+
+    dirs_to_clean = []
+    if target in ("all", "input"):
+        dirs_to_clean.append(INPUT_DIR)
+    if target in ("all", "output"):
+        dirs_to_clean.append(OUTPUT_DIR)
+
+    # 统计文件数量
+    total_files = 0
+    total_size = 0
+    for d in dirs_to_clean:
+        if d.exists():
+            for f in d.rglob("*"):
+                if f.is_file():
+                    total_files += 1
+                    total_size += f.stat().st_size
+
+    if total_files == 0:
+        print("✅ 目录已经是空的，无需清理")
+        return
+
+    size_mb = total_size / (1024 * 1024)
+    print(f"\n⚠️  即将删除 {total_files} 个文件 (共 {size_mb:.1f} MB)")
+    for d in dirs_to_clean:
+        print(f"   📂 {d}")
+
+    if not inquirer.confirm(message="确认删除? 此操作不可恢复!", default=False).execute():
+        print("✅ 已取消")
+        return
+
+    deleted = 0
+    for d in dirs_to_clean:
+        if not d.exists():
+            continue
+        for item in sorted(d.rglob("*"), reverse=True):
+            try:
+                if item.is_file():
+                    item.unlink()
+                    deleted += 1
+                elif item.is_dir() and item != d:
+                    # 删除空子目录 (保留根目录本身)
+                    try:
+                        item.rmdir()
+                    except OSError:
+                        pass  # 目录非空，跳过
+            except Exception as e:
+                print(f"  ⚠️  无法删除 {item.name}: {e}")
+
+    print(f"\n✅ 清理完成，共删除 {deleted} 个文件")
+
+
 def _check_ffmpeg():
     """检测 FFmpeg 是否可用"""
     if not shutil.which(FFMPEG_BIN):
@@ -981,6 +1047,7 @@ def main():
                 Choice("qc", "✅ 自动质量检测 (QC)"),
                 Choice("mediainfo", "📊 查看信息 (Media Info)"),
                 Separator(),
+                Choice("clean", "🧹 清理文件 (Clean)"),
                 Choice("exit", "❌ 退出"),
             ],
             default="watermark",
@@ -989,6 +1056,13 @@ def main():
         if module == "exit":
             print("Bye!")
             sys.exit(0)
+
+        if module == "clean":
+            menu_clean()
+            print()
+            if not inquirer.confirm(message="继续其他操作?", default=True).execute():
+                break
+            continue
 
         # 获取输入
         if module in ("add_watermark", "convert", "mediainfo", "filter", "crop", "subtitle"):
