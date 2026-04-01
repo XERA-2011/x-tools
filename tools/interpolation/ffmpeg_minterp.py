@@ -21,6 +21,7 @@ from tools.common import get_video_info, logger, run_ffmpeg_with_progress
 def interpolate_video_ffmpeg(
     video_path: str | Path,
     output_path: str | Path | None = None,
+    output_dir: str | Path | None = None,
     target_fps: float = INTERPOLATION_TARGET_FPS,
     mode: str = "mci",
     mc_mode: str = "aobmc",
@@ -69,7 +70,9 @@ def interpolate_video_ffmpeg(
     # 输出路径
     OUTPUT_INTERPOLATION.mkdir(parents=True, exist_ok=True)
     if output_path is None:
-        output_path = OUTPUT_INTERPOLATION / f"{video_path.stem}_{target_fps:.0f}fps_ffmpeg.mp4"
+        target_dir = Path(output_dir) if output_dir else OUTPUT_INTERPOLATION
+        target_dir.mkdir(parents=True, exist_ok=True)
+        output_path = target_dir / f"{video_path.stem}_{target_fps:.0f}fps_ffmpeg.mp4"
     output_path = Path(output_path)
 
     # minterpolate 滤镜

@@ -3,7 +3,7 @@
 """
 from pathlib import Path
 
-from config import INPUT_DIR, ensure_dirs
+from config import INPUT_DIR, OUTPUT_FILTER, ensure_dirs
 from tools.common import resolve_media_files, run_batch
 from tools.filter.ffmpeg_filter import FILTER_PRESETS, apply_filter
 
@@ -34,6 +34,7 @@ def batch_filter(
         files,
         apply_filter,
         desc=desc,
+        base_output_dir=OUTPUT_FILTER,
         preset=preset,
         crf=crf,
         **kwargs,

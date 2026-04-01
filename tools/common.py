@@ -386,11 +386,29 @@ def run_batch(
     files: list[Path],
     process_fn: Callable,
     desc: str,
+    base_output_dir: Path | None = None,
     **kwargs,
 ) -> list[dict]:
     """
     统一批量处理入口，包含执行与摘要打印
+
+    Args:
+        files: 待处理文件列表
+        process_fn: 处理函数
+        desc: 进度条描述
+        base_output_dir: 批量输出的基础目录。当文件数 > 1 时，
+                         自动在此目录下创建 batch_MMDD_HHMMSS 子文件夹。
+        **kwargs: 传递给 process_fn 的参数
     """
+    # 多文件时，自动创建批次子文件夹
+    if base_output_dir and len(files) > 1:
+        now = datetime.now()
+        batch_name = f"batch_{now.strftime('%m%d_%H%M%S')}"
+        batch_dir = base_output_dir / batch_name
+        batch_dir.mkdir(parents=True, exist_ok=True)
+        kwargs["output_dir"] = batch_dir
+        logger.info(f"📁 批量输出目录: {batch_dir}")
+
     results = batch_process(
         files,
         process_fn,

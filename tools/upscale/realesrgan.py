@@ -145,6 +145,7 @@ def _run_realesrgan_on_frames(input_dir: Path, output_dir: Path, total_frames: i
 def upscale_video_realesrgan(
     video_path: str | Path,
     output_path: str | Path | None = None,
+    output_dir: str | Path | None = None,
     scale: int | None = None,
     device: str | None = None,
     target_width: int | None = None,
@@ -207,11 +208,13 @@ def upscale_video_realesrgan(
     # 准备输出路径
     OUTPUT_UPSCALE.mkdir(parents=True, exist_ok=True)
     if output_path is None:
+        target_dir = Path(output_dir) if output_dir else OUTPUT_UPSCALE
+        target_dir.mkdir(parents=True, exist_ok=True)
         if target_width and target_height:
             tag = f"_{target_width}x{target_height}"
         else:
             tag = f"_{scale}x"
-        output_path = OUTPUT_UPSCALE / generate_output_name(video_path.stem, ".mp4", tag)
+        output_path = target_dir / generate_output_name(video_path.stem, ".mp4", tag)
     output_path = Path(output_path)
 
     actual_output = output_path

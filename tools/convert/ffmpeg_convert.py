@@ -41,6 +41,7 @@ ALL_FORMATS = set(VIDEO_FORMATS) | set(AUDIO_FORMATS)
 def convert_media(
     input_path: str | Path,
     output_path: str | Path | None = None,
+    output_dir: str | Path | None = None,
     target_format: str = "mp4",
     video_codec: str | None = None,
     audio_codec: str | None = None,
@@ -89,8 +90,10 @@ def convert_media(
     # 输出路径
     OUTPUT_CONVERT.mkdir(parents=True, exist_ok=True)
     if output_path is None:
+        target_dir_path = Path(output_dir) if output_dir else OUTPUT_CONVERT
+        target_dir_path.mkdir(parents=True, exist_ok=True)
         output_name = generate_output_name(input_path.stem, out_ext, tag="convert")
-        output_path = OUTPUT_CONVERT / output_name
+        output_path = target_dir_path / output_name
     output_path = Path(output_path)
 
     # 构建 FFmpeg 命令

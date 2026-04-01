@@ -7,7 +7,7 @@
 """
 from pathlib import Path
 
-from config import INPUT_DIR, INTERPOLATION_TARGET_FPS, ensure_dirs
+from config import INPUT_DIR, INTERPOLATION_TARGET_FPS, OUTPUT_INTERPOLATION, ensure_dirs
 from tools.common import resolve_media_files, run_batch
 from tools.interpolation.ffmpeg_minterp import interpolate_video_ffmpeg
 
@@ -32,6 +32,7 @@ def batch_interpolate_ffmpeg(
         videos,
         interpolate_video_ffmpeg,
         desc=f"批量插帧 (FFmpeg {target_fps} fps)",
+        base_output_dir=OUTPUT_INTERPOLATION,
         target_fps=target_fps,
         **kwargs,
     )
@@ -58,6 +59,7 @@ def batch_interpolate_rife(
         videos,
         interpolate_video_rife,
         desc=f"批量插帧 (RIFE {multiplier}x)",
+        base_output_dir=OUTPUT_INTERPOLATION,
         multiplier=multiplier,
         **kwargs,
     )

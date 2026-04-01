@@ -317,6 +317,7 @@ def add_text_watermark_image(
     image_path: str | Path,
     text: str,
     output_path: str | Path | None = None,
+    output_dir: str | Path | None = None,
     font_path: str | None = None,
     font_size: int = ADD_WATERMARK_FONT_SIZE,
     color: tuple[int, int, int] = ADD_WATERMARK_COLOR,
@@ -349,7 +350,9 @@ def add_text_watermark_image(
     # 输出
     OUTPUT_ADD_WATERMARK.mkdir(parents=True, exist_ok=True)
     if output_path is None:
-        output_path = OUTPUT_ADD_WATERMARK / generate_output_name(image_path.stem, image_path.suffix, "_wm")
+        target_dir = Path(output_dir) if output_dir else OUTPUT_ADD_WATERMARK
+        target_dir.mkdir(parents=True, exist_ok=True)
+        output_path = target_dir / generate_output_name(image_path.stem, image_path.suffix, "_wm")
     output_path = Path(output_path)
 
     # 保存 (转回 RGB, 因为 JPEG 不支持 RGBA)
@@ -368,6 +371,7 @@ def add_text_watermark_video(
     video_path: str | Path,
     text: str,
     output_path: str | Path | None = None,
+    output_dir: str | Path | None = None,
     font_path: str | None = None,
     font_size: int = ADD_WATERMARK_FONT_SIZE,
     color: tuple[int, int, int] = ADD_WATERMARK_COLOR,
@@ -391,7 +395,9 @@ def add_text_watermark_video(
 
     OUTPUT_ADD_WATERMARK.mkdir(parents=True, exist_ok=True)
     if output_path is None:
-        output_path = OUTPUT_ADD_WATERMARK / generate_output_name(video_path.stem, ".mp4", "_wm")
+        target_dir = Path(output_dir) if output_dir else OUTPUT_ADD_WATERMARK
+        target_dir.mkdir(parents=True, exist_ok=True)
+        output_path = target_dir / generate_output_name(video_path.stem, ".mp4", "_wm")
     output_path = Path(output_path)
 
     logger.info(f"视频文字水印: {video_path.name}")

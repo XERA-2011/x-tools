@@ -7,7 +7,7 @@
 """
 from pathlib import Path
 
-from config import INPUT_DIR, UPSCALE_FACTOR, ensure_dirs
+from config import INPUT_DIR, OUTPUT_UPSCALE, UPSCALE_FACTOR, ensure_dirs
 from tools.common import resolve_media_files, run_batch
 from tools.upscale.ffmpeg_scale import upscale_video_ffmpeg
 
@@ -44,6 +44,7 @@ def batch_upscale_ffmpeg(
         videos,
         upscale_video_ffmpeg,
         desc=desc,
+        base_output_dir=OUTPUT_UPSCALE,
         scale=scale,
         width=width,
         height=height,
@@ -84,6 +85,7 @@ def batch_upscale_realesrgan(
         videos,
         upscale_video_realesrgan,
         desc=desc,
+        base_output_dir=OUTPUT_UPSCALE,
         scale=scale,
         device=device,
         target_width=target_width,

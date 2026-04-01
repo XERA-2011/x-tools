@@ -7,7 +7,7 @@
 """
 from pathlib import Path
 
-from config import INPUT_DIR, ensure_dirs
+from config import INPUT_DIR, OUTPUT_WATERMARK, ensure_dirs
 from tools.common import parse_region, resolve_media_files, run_batch
 from tools.watermark.opencv_inpaint import remove_watermark_opencv
 
@@ -40,6 +40,7 @@ def batch_remove_watermark_opencv(
         videos,
         remove_watermark_opencv,
         desc="批量去水印 (OpenCV)",
+        base_output_dir=OUTPUT_WATERMARK,
         regions=regions,
         mask_path=mask_path,
         method=method,
@@ -78,6 +79,7 @@ def batch_remove_watermark_lama(
         videos,
         remove_watermark_lama,
         desc="批量去水印 (LaMA)",
+        base_output_dir=OUTPUT_WATERMARK,
         regions=regions,
         mask_path=mask_path,
         device=device,

@@ -3,9 +3,11 @@
 """
 from pathlib import Path
 
-from config import INPUT_DIR, ensure_dirs
+from config import INPUT_DIR, OUTPUT_DIR, ensure_dirs
 from tools.common import resolve_media_files, run_batch
 from tools.compress.ffmpeg_compress import compress_video
+
+OUTPUT_COMPRESS = OUTPUT_DIR / "compress"
 
 
 def batch_compress(
@@ -28,6 +30,7 @@ def batch_compress(
         files,
         compress_video,
         desc=desc,
+        base_output_dir=OUTPUT_COMPRESS,
         codec=codec,
         crf=crf,
         preset=preset,

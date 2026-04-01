@@ -15,6 +15,7 @@ OUTPUT_COMPRESS = OUTPUT_DIR / "compress"
 def compress_video(
     input_video: str | Path,
     output_path: str | Path | None = None,
+    output_dir: str | Path | None = None,
     codec: str = "libx264",
     crf: int = 24,
     preset: str = "slow",
@@ -41,9 +42,11 @@ def compress_video(
     OUTPUT_COMPRESS.mkdir(parents=True, exist_ok=True)
 
     if output_path is None:
+        target_dir = Path(output_dir) if output_dir else OUTPUT_COMPRESS
+        target_dir.mkdir(parents=True, exist_ok=True)
         crf_str = f"crf{crf}"
         output_name = generate_output_name(input_video.stem, ".mp4", tag=f"compressed_{codec}_{crf_str}")
-        output_path = OUTPUT_COMPRESS / output_name
+        output_path = target_dir / output_name
     output_path = Path(output_path)
 
     # 对于各大自媒体平台，标准兼容设定:

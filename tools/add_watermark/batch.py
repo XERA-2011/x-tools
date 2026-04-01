@@ -7,7 +7,7 @@
 """
 from pathlib import Path
 
-from config import INPUT_DIR, ensure_dirs
+from config import INPUT_DIR, OUTPUT_ADD_WATERMARK, ensure_dirs
 from tools.add_watermark.image_watermark import add_image_watermark
 from tools.add_watermark.text_watermark import add_text_watermark
 from tools.common import resolve_media_files, run_batch
@@ -36,6 +36,7 @@ def batch_add_text_watermark(
         files,
         add_text_watermark,
         desc="批量添加文字水印",
+        base_output_dir=OUTPUT_ADD_WATERMARK,
         opacity=opacity,
         margin=margin,
         **kwargs,
@@ -67,6 +68,7 @@ def batch_add_image_watermark(
         files,
         add_image_watermark,
         desc="批量添加 Logo 水印",
+        base_output_dir=OUTPUT_ADD_WATERMARK,
         watermark_path=watermark_path,
         opacity=opacity,
         margin=margin,

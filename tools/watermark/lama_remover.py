@@ -78,6 +78,7 @@ def remove_watermark_lama(
     regions: list[tuple[int, int, int, int]] | None = None,
     mask_path: str | Path | None = None,
     output_path: str | Path | None = None,
+    output_dir: str | Path | None = None,
     device: str | None = None,
     feather: int = 5,
     ref_width: int = 0,
@@ -129,7 +130,9 @@ def remove_watermark_lama(
     # 3. 准备输出
     OUTPUT_WATERMARK.mkdir(parents=True, exist_ok=True)
     if output_path is None:
-        output_path = OUTPUT_WATERMARK / generate_output_name(video_path.stem, ".mp4", "_no_wm_lama")
+        target_dir = Path(output_dir) if output_dir else OUTPUT_WATERMARK
+        target_dir.mkdir(parents=True, exist_ok=True)
+        output_path = target_dir / generate_output_name(video_path.stem, ".mp4", "_no_wm_lama")
     output_path = Path(output_path)
 
     frames_processed = 0

@@ -58,6 +58,7 @@ FILTER_PRESETS = {
 def apply_filter(
     input_path: str | Path,
     output_path: str | Path | None = None,
+    output_dir: str | Path | None = None,
     preset: str = "high_contrast",
     intensity: float = 1.0,
     crf: int = 18,
@@ -98,9 +99,11 @@ def apply_filter(
     # 输出路径
     OUTPUT_FILTER.mkdir(parents=True, exist_ok=True)
     if output_path is None:
+        target_dir = Path(output_dir) if output_dir else OUTPUT_FILTER
+        target_dir.mkdir(parents=True, exist_ok=True)
         out_ext = suffix if is_image else ".mp4"
         output_name = generate_output_name(input_path.stem, out_ext, tag=preset)
-        output_path = OUTPUT_FILTER / output_name
+        output_path = target_dir / output_name
     output_path = Path(output_path)
 
     # 构建 FFmpeg 命令

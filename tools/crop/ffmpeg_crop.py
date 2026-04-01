@@ -66,6 +66,7 @@ def calc_crop(src_w: int, src_h: int, ratio: tuple[int, int]) -> tuple[int, int,
 def crop_media(
     input_path: str | Path,
     output_path: str | Path | None = None,
+    output_dir: str | Path | None = None,
     ratio: str = "3:4",
     crf: int = 18,
 ) -> dict:
@@ -118,9 +119,11 @@ def crop_media(
     OUTPUT_CROP.mkdir(parents=True, exist_ok=True)
     ratio_tag = ratio.replace(":", "x")
     if output_path is None:
+        target_dir = Path(output_dir) if output_dir else OUTPUT_CROP
+        target_dir.mkdir(parents=True, exist_ok=True)
         out_ext = suffix if is_image else ".mp4"
         output_name = generate_output_name(input_path.stem, out_ext, tag=ratio_tag)
-        output_path = OUTPUT_CROP / output_name
+        output_path = target_dir / output_name
     output_path = Path(output_path)
 
     # 构建 FFmpeg 命令

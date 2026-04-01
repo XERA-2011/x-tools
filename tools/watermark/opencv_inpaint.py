@@ -81,6 +81,7 @@ def remove_watermark_opencv(
     regions: list[tuple[int, int, int, int]] | None = None,
     mask_path: str | Path | None = None,
     output_path: str | Path | None = None,
+    output_dir: str | Path | None = None,
     method: str = "telea",
     inpaint_radius: int = WATERMARK_INPAINT_RADIUS,
     feather: int = 3,
@@ -115,7 +116,9 @@ def remove_watermark_opencv(
     inpaint_flags = cv2.INPAINT_TELEA if method == "telea" else cv2.INPAINT_NS
 
     if output_path is None:
-        output_path = OUTPUT_WATERMARK / generate_output_name(video_path.stem, ".mp4", "_no_wm")
+        target_dir = Path(output_dir) if output_dir else OUTPUT_WATERMARK
+        target_dir.mkdir(parents=True, exist_ok=True)
+        output_path = target_dir / generate_output_name(video_path.stem, ".mp4", "_no_wm")
     
     # 获取视频信息以创建 mask
     cap = cv2.VideoCapture(str(video_path))

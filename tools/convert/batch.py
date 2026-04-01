@@ -9,7 +9,7 @@
 """
 from pathlib import Path
 
-from config import INPUT_DIR, ensure_dirs
+from config import INPUT_DIR, OUTPUT_CONVERT, ensure_dirs
 from tools.common import resolve_media_files, run_batch
 from tools.convert.ffmpeg_convert import ALL_FORMATS, convert_media
 
@@ -53,6 +53,7 @@ def batch_convert(
         files,
         convert_media,
         desc=desc,
+        base_output_dir=OUTPUT_CONVERT,
         target_format=target_format,
         video_codec=video_codec,
         audio_codec=audio_codec,

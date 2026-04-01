@@ -53,6 +53,7 @@ def _interpolate_frames_ncnn(frame1: np.ndarray, frame2: np.ndarray, rife) -> np
 def interpolate_video_rife(
     video_path: str | Path,
     output_path: str | Path | None = None,
+    output_dir: str | Path | None = None,
     multiplier: int | None = None,
     target_fps: float | None = None,
 ) -> dict:
@@ -106,7 +107,9 @@ def interpolate_video_rife(
 
     OUTPUT_INTERPOLATION.mkdir(parents=True, exist_ok=True)
     if output_path is None:
-        output_path = OUTPUT_INTERPOLATION / generate_output_name(
+        target_dir = Path(output_dir) if output_dir else OUTPUT_INTERPOLATION
+        target_dir.mkdir(parents=True, exist_ok=True)
+        output_path = target_dir / generate_output_name(
             video_path.stem, ".mp4", f"_{actual_multiplier}x_{new_fps:.0f}fps"
         )
     output_path = Path(output_path)

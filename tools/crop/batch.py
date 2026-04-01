@@ -3,7 +3,7 @@
 """
 from pathlib import Path
 
-from config import INPUT_DIR, ensure_dirs
+from config import INPUT_DIR, OUTPUT_CROP, ensure_dirs
 from tools.common import resolve_media_files, run_batch
 from tools.crop.ffmpeg_crop import ASPECT_RATIOS, crop_media
 
@@ -32,6 +32,7 @@ def batch_crop(
         files,
         crop_media,
         desc=desc,
+        base_output_dir=OUTPUT_CROP,
         ratio=ratio,
         crf=crf,
         **kwargs,

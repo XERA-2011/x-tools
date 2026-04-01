@@ -21,6 +21,7 @@ from tools.common import get_video_info, logger, orient_resolution
 def upscale_video_ffmpeg(
     video_path: str | Path,
     output_path: str | Path | None = None,
+    output_dir: str | Path | None = None,
     scale: int | None = UPSCALE_FACTOR,
     width: int | None = None,
     height: int | None = None,
@@ -81,8 +82,10 @@ def upscale_video_ffmpeg(
     # 输出路径
     OUTPUT_UPSCALE.mkdir(parents=True, exist_ok=True)
     if output_path is None:
+        target_dir = Path(output_dir) if output_dir else OUTPUT_UPSCALE
+        target_dir.mkdir(parents=True, exist_ok=True)
         suffix = f"_{scale}x" if scale else f"_{target_w}x{target_h}"
-        output_path = OUTPUT_UPSCALE / f"{video_path.stem}{suffix}_ffmpeg.mp4"
+        output_path = target_dir / f"{video_path.stem}{suffix}_ffmpeg.mp4"
     output_path = Path(output_path)
 
     # scale 滤镜标志
