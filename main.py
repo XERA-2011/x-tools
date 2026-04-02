@@ -743,27 +743,6 @@ def menu_concat(videos: list[Path]):
     if transition != "none":
         transition_duration = float(inquirer.text(message="过渡时长 (秒):", default="1").execute())
 
-    # 首尾裁剪 (去除 AI 生成视频的静止帧)
-    trim_choice = inquirer.select(
-        message="裁剪每个视频的首尾? (去除静止帧, 使拼接更流畅)",
-        choices=[
-            Choice("0", "⏩ 不裁剪"),
-            Choice("0.2", "✂️  各裁剪 0.2 秒"),
-            Choice("0.4", "✂️  各裁剪 0.4 秒"),
-            Choice("1.0", "✂️  各裁剪 1.0 秒"),
-            Choice("custom", "✏️  自定义"),
-        ],
-        default="0",
-    ).execute()
-
-    trim_start = 0.0
-    trim_end = 0.0
-    if trim_choice == "custom":
-        trim_start = float(inquirer.text(message="裁剪开头 (秒):").execute())
-        trim_end = float(inquirer.text(message="裁剪结尾 (秒):").execute())
-    elif trim_choice != "0":
-        trim_start = trim_end = float(trim_choice)
-
     # 音频过渡 (避免接缝爆音) 或静音
     mute_audio = False
     audio_fade_choice = inquirer.select(
@@ -794,8 +773,6 @@ def menu_concat(videos: list[Path]):
             video_paths=videos,
             transition=transition,
             transition_duration=transition_duration,
-            trim_start=trim_start,
-            trim_end=trim_end,
             audio_fade_in=audio_fade_in,
             audio_fade_out=audio_fade_out,
             mute_audio=mute_audio,

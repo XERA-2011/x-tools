@@ -41,7 +41,6 @@ def get_available_music() -> list[Path]:
 TRANSITION_PRESETS = {
     "none": {"name": "⏩ 无过渡 (直接拼接)", "xfade": None},
     "fade": {"name": "🌑 淡入淡出", "xfade": "fade"},
-    "dissolve": {"name": "✨ 交叉溶解", "xfade": "dissolve"},
 }
 
 
@@ -54,8 +53,6 @@ def concat_videos(
     crf: int = 18,
     transition: str = "none",
     transition_duration: float = 1.0,
-    trim_start: float = 0.0,
-    trim_end: float = 0.0,
     audio_fade_in: float = 0.0,
     audio_fade_out: float = 0.0,
     mute_audio: bool = False,
@@ -70,8 +67,6 @@ def concat_videos(
         music_volume: 背景音乐音量 (0.0~1.0, 默认 0.3)
         keep_original_audio: 是否保留原视频声音 (True=混合, False=替换)
         crf: 视频质量
-        trim_start: float,
-        trim_end: float,
         audio_fade_in: 首尾音频淡入时长 (秒)
         audio_fade_out: 首尾音频淡出时长 (秒)
         mute_audio: 是否拼接后输出静音视频
@@ -104,17 +99,14 @@ def concat_videos(
     target_w = target_w // 2 * 2
     target_h = target_h // 2 * 2
 
-    trim_msg = ""
-    if trim_start > 0 or trim_end > 0:
-        trim_msg = f" (裁剪: 头 {trim_start}s / 尾 {trim_end}s)"
     fade_msg = ""
     if audio_fade_in > 0 or audio_fade_out > 0:
         fade_msg = f" (音频过渡: 入 {audio_fade_in}s / 出 {audio_fade_out}s)"
     
     if len(video_paths) == 1:
-        logger.info(f"为单个视频添加背景音乐 → {target_w}x{target_h}{trim_msg}{fade_msg}")
+        logger.info(f"为单个视频添加背景音乐 → {target_w}x{target_h}{fade_msg}")
     else:
-        logger.info(f"拼接 {len(video_paths)} 个视频 → {target_w}x{target_h}{trim_msg}{fade_msg}")
+        logger.info(f"拼接 {len(video_paths)} 个视频 → {target_w}x{target_h}{fade_msg}")
 
     # 输出路径
     OUTPUT_CONCAT.mkdir(parents=True, exist_ok=True)
@@ -152,8 +144,8 @@ def concat_videos(
         video_paths=video_paths,
         target_w=target_w,
         target_h=target_h,
-        trim_start=trim_start,
-        trim_end=trim_end,
+        trim_start=0.0,
+        trim_end=0.0,
         audio_fade_in=audio_fade_in,
         audio_fade_out=audio_fade_out,
         include_audio=include_audio,
