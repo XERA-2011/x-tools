@@ -25,8 +25,7 @@ from tools.crop.batch import batch_crop
 from tools.filter.batch import batch_filter
 from tools.filter.ffmpeg_filter import FILTER_PRESETS, preview_filter
 from tools.interpolation.batch import batch_interpolate_ffmpeg, batch_interpolate_rife
-from tools.mediainfo.probe import display_batch_summary, display_info, get_detailed_info
-from tools.qc.auto_qc import batch_qc, display_qc_summary
+
 from tools.subtitle.ffmpeg_subtitle import SUBTITLE_STYLES, burn_subtitles
 from tools.subtitle.whisper_transcribe import WHISPER_MODELS, transcribe_video
 from tools.upscale.batch import batch_upscale_ffmpeg, batch_upscale_realesrgan
@@ -546,48 +545,6 @@ def menu_convert(media: list[Path]):
         )
 
 
-def menu_mediainfo(media: list[Path]):
-    """查看媒体信息菜单"""
-    if len(media) == 1:
-        # 单文件: 直接展示详细信息
-        info = get_detailed_info(media[0])
-        display_info(info)
-    else:
-        view_mode = inquirer.select(
-            message=f"已选择 {len(media)} 个文件, 查看方式:",
-            choices=[
-                Choice("summary", "📊 汇总表格 (所有文件对比)"),
-                Choice("detail", "📋 逐个查看 (每个文件详细信息)"),
-                Separator(),
-                Choice("back", "⬅️  返回上一级"),
-            ],
-        ).execute()
-
-        if view_mode == "back":
-            return
-
-        if view_mode == "summary":
-            display_batch_summary(media)
-        else:
-            for f in media:
-                info = get_detailed_info(f)
-                display_info(info)
-
-
-def menu_qc(videos: list[Path]):
-    mode = inquirer.select(
-        message="质量检测模式:",
-        choices=[
-            Choice("quick", "⚡ 快速 (黑场/静音 + 元信息)"),
-            Choice("full", "🔍 完整 (含冻结检测, 更慢)"),
-        ],
-        default="quick",
-    ).execute()
-
-    detect_freeze = mode == "full"
-    results = batch_qc(videos, detect_black=True, detect_silence=True, detect_freeze=detect_freeze)
-    display_qc_summary(results)
-
 
 def menu_crop(media: list[Path]):
     """裁切比例菜单"""
@@ -1098,9 +1055,7 @@ def main():
                 Choice("concat", "🎬 拼接视频 (Concat)"),
                 Choice("bgm", "🎵 添加背景音乐 (BGM)"),
                 Choice("subtitle", "📝 字幕 (Subtitle)"),
-                Choice("qc", "✅ 自动质量检测 (QC)"),
                 Choice("mv", "🎵 歌词 MV 生成 (Lyric MV)"),
-                Choice("mediainfo", "📊 查看信息 (Media Info)"),
                 Separator(),
                 Choice("clean", "🧹 清理文件 (Clean)"),
                 Choice("exit", "❌ 退出"),
@@ -1127,7 +1082,7 @@ def main():
             continue
 
         # 获取输入
-        if module in ("add_watermark", "convert", "mediainfo", "filter", "crop", "subtitle"):
+        if module in ("add_watermark", "convert", "filter", "crop", "subtitle"):
             media = get_input_media()
             if media is None:
                 continue
@@ -1138,8 +1093,6 @@ def main():
                 menu_add_watermark(media)
             elif module == "convert":
                 menu_convert(media)
-            elif module == "mediainfo":
-                menu_mediainfo(media)
             elif module == "filter":
                 menu_filter(media)
             elif module == "crop":
@@ -1164,8 +1117,6 @@ def main():
                 menu_concat(videos)
             elif module == "bgm":
                 menu_add_bgm(videos)
-            elif module == "qc":
-                menu_qc(videos)
             elif module == "compress":
                 menu_compress(videos)
 
