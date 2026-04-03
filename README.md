@@ -1,95 +1,68 @@
 # x-tools 视频处理工具箱
 
-一个简单易用的批处理工具箱，专注于视频修复与增强。
+`x-tools` 是一个基于终端交互菜单（TUI）的媒体批处理工具，聚焦视频常见处理流程。
 
-**核心功能**: 去水印 (OpenCV/LaMA 深度学习)、高清重置 (Real-ESRGAN/FFmpeg)、帧数补充 (RIFE)、格式转换 (FFmpeg)。
+## 快速开始
 
-## 🚀 快速开始 (30秒上手)
+1. 安装 FFmpeg
+- macOS: `brew install ffmpeg`
+- Ubuntu: `sudo apt install ffmpeg`
+- Windows: `winget install Gyan.FFmpeg`
 
-**1. 安装 FFmpeg**
+2. 安装 Python 依赖
 
-| 平台 | 命令 |
-|------|------|
-| macOS | `brew install ffmpeg` |
-| Ubuntu | `sudo apt install ffmpeg` |
-| Windows | `winget install Gyan.FFmpeg` (安装后需**重启终端**) |
-
-**2. 环境配置**
-
-**macOS / Linux:**
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-**Windows (PowerShell):**
+Windows PowerShell:
+
 ```powershell
 python -m venv .venv
 & .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
-> ⚠️ **Windows 注意**: 请使用 `python` 而非 `python3`，激活虚拟环境时必须使用 `& .\.venv\Scripts\Activate.ps1` 语法。
-> 若安装 FFmpeg 后仍提示未检测到，请重启终端或执行:
-> ```powershell
-> $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
-> ```
-
-**3. 运行交互式终端**
-无需记忆命令，通过箭头键选择功能：
+3. 启动
 
 ```bash
 python main.py
 ```
 
-支持：
-- 📂 **输入源灵活**: 自动扫描 `input/` 目录，或选择单个文件/任意文件夹。
-- 💧 **去水印**: 支持鼠标框选区域 (OpenCV 快速修复 / LaMA 深度学习无痕修复)。
-- 🏷️ **加水印**: 文字水印 (支持中文) / 图片水印 (Logo), 支持图片和视频。
-- 🆙 **高清重置**: 批量 2x/4x 放大 (使用 Real-ESRGAN AI 或 FFmpeg)。
-- 🔄 **格式转换**: 视频格式互转 / 提取音频 / 去除音频 / 快速无损封装。
-- 📊 **查看信息**: 显示分辨率、清晰度等级、帧率、编码器、码率、音频等详细信息。
-- ✅ **自动质量检测**: 黑场 / 静音 / 冻结检测 + 元信息诊断, 生成报告。
-- 🎨 **滤镜效果**: 11 种热门预设 (电影感/复古/赛博朋克/日系/黑白/暖色/冷色/高对比/徕卡M3/徕卡M9/微距)。
-- ✂️ **裁切比例**: 居中裁切为 1:1 / 3:4 / 4:3 / 9:16 / 16:9 等比例。
-- 🎬 **拼接视频**: 多视频拼接, 支持过渡效果与音频平滑。
-- 🎵 **添加背景音乐**: 为单个视频添加 BGM, 支持音量调节与混音。
-- 📝 **字幕**: AI 语音识别自动生成字幕 (Whisper), 字幕烧录, 一键字幕。
+## 功能概览
 
----
+- 去水印：FFmpeg delogo / OpenCV / LaMA
+- 增加水印：文字水印、图片水印（支持图片与视频）
+- 无损压缩：H.264 / H.265（CRF 预设）
+- 高清重置：FFmpeg 放大、Real-ESRGAN 超分
+- 帧数补充：FFmpeg 运动补偿、RIFE AI 插帧
+- 格式转换：转码、提取音频、去音频、快速封装
+- 滤镜效果：内置多种 FFmpeg 预设
+- 裁切比例：1:1、3:4、4:3、9:16、16:9
+- 拼接视频：支持转场和音频过渡
+- 添加背景音乐：支持混音与淡入淡出
+- 字幕：自动识别、烧录、一键字幕、基于 SRT 的 AI 配音
+- 自动质量检测：黑场 / 静音 / 冻结检测与元信息诊断
+- 媒体信息查看：分辨率、帧率、编码、码率等
+- 清理文件：清理 `input/` 和 `output/`
 
-## 🗂️ 目录结构
-```
-x-tools/
-├── main.py                       # 🚀 交互式入口
-├── config.py                     # ⚙️ 全局配置
-├── input/                        # 📂 默认输入目录
-├── output/                       # 📂 默认输出目录
-└── tools/
-    ├── watermark/                # 去水印模块 (OpenCV, LaMA)
-    ├── add_watermark/            # 加水印模块 (文字, Logo)
-    ├── upscale/                  # 超分模块 (Real-ESRGAN, FFmpeg)
-    ├── interpolation/            # 插帧模块 (RIFE, FFmpeg)
-    ├── convert/                  # 格式转换模块 (FFmpeg)
-    ├── filter/                   # 滤镜效果 (FFmpeg)
-    ├── crop/                     # 裁切比例 (FFmpeg)
-    ├── concat/                   # 视频拼接 (FFmpeg)
-    ├── bgm/                      # 添加背景音乐 (FFmpeg)
-    ├── ffmpeg/                   # FFmpeg 共享构建逻辑
-    ├── qc/                       # 自动质量检测 (FFmpeg)
-    ├── subtitle/                 # 字幕 (Whisper + FFmpeg)
-    └── mediainfo/                # 媒体信息查看 (FFprobe)
-```
+## 目录约定
 
-```
-music/                            # 背景音乐目录 (放入 .mp3/.wav 等音频文件)
-```
+- 默认输入目录：`input/`
+- 默认输出目录：`output/`
+- 背景音乐目录：`music/`
 
-## 📦 依赖说明
-- **基础依赖**: `opencv-python`, `ffmpeg-python`, `rich`, `InquirerPy`, `Pillow`
-- **AI 增强 (按需安装)**:
-  - 去水印 (LaMA): `torch`, `torchvision` (首次运行自动下载模型)
-  - 超分 (Real-ESRGAN): `basicsr`, `realesrgan`
-  - 插帧 (RIFE): `rife-ncnn-vulkan-python`
-  - 字幕 (Whisper): `openai-whisper`
+## 可选 AI 依赖（按需安装）
+
+- LaMA 去水印：`pip install torch torchvision`
+- Whisper 字幕识别：`pip install openai-whisper`
+- RIFE 插帧：`pip install rife-ncnn-vulkan-python`
+- 字幕配音（TTS）：`pip install edge-tts`
+- Real-ESRGAN 超分：将 `realesrgan-ncnn-vulkan` 可执行文件放到 `bin/` 目录并赋予执行权限
+
+## 说明
+
+- 推荐 Python 3.10+
+- macOS 如遇字幕烧录问题，可安装 `ffmpeg-full`（带 `libass`）
