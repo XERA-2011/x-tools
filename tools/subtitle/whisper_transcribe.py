@@ -134,7 +134,7 @@ def transcribe_video(
 
         # 3. 识别
         logger.info("开始语音识别...")
-        transcribe_opts = {"verbose": False}
+        transcribe_opts = {"verbose": False, "word_timestamps": True}
         if language:
             transcribe_opts["language"] = language
 
@@ -182,7 +182,7 @@ def transcribe_video(
         return {
             "output": str(output_path),
             "language": detected_lang,
-            "segments": len(segments),
+            "segments": segments,
         }
     finally:
         # 清理临时音频

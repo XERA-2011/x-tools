@@ -17,6 +17,10 @@ deep-translator>=1.11.0  # Multi-engine translation (bilingual subtitles)
 # torch>=2.0.0
 # torchvision>=0.15.0
 
+# 音轨节拍分析 (lyric_mv)
+librosa>=0.10.0
+soundfile>=0.12.0
+
 # Super Resolution (Phase 3)
 # realesrgan
 
