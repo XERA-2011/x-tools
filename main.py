@@ -957,6 +957,90 @@ def menu_compress(videos: list[Path]):
         batch_compress(files=videos, codec=codec, crf=strength)
 
 
+def menu_slideshow(images: list[Path]):
+    """幻灯片 (Slideshow) 菜单"""
+    from tools.slideshow.generator import generate_slideshow
+    from tools.concat.ffmpeg_concat import get_available_music
+    
+    if len(images) < 1:
+        print("❌ 未找到图片")
+        return
+        
+    print(f"\n将按以下顺序将 {len(images)} 张图片拼接为视频:")
+    for i, img in enumerate(images, 1):
+        print(f"  {i}. {img.name}")
+    print()
+
+    res = inquirer.select(
+        message="选择目标分辨率比例:",
+        choices=[
+            Choice((1080, 1920), "📱 9:16 竖屏 (1080x1920)"),
+            Choice((1920, 1080), "🖥️  16:9 横屏 (1920x1080)"),
+        ],
+        default=(1080, 1920),
+    ).execute()
+    
+    text_input = inquirer.text(message="输入文案 (多句话用 | 分隔，空则不加):").execute()
+    texts = [t.strip() for t in text_input.split("|")] if text_input.strip() else []
+    
+    if len(texts) > 0 and len(texts) < len(images):
+        print(f"💡 提示：只提供了 {len(texts)} 句文案，后面的图片将不带文案。")
+        
+    duration = float(inquirer.text(message="每张图片展示时长 (秒):", default="5.0").execute())
+    
+    # 音乐
+    available_music = get_available_music()
+    music_choices = [Choice("none", "🚫 不添加音乐")]
+    if available_music:
+        for m in available_music:
+            music_choices.append(Choice(str(m), f"🎵 {m.stem}"))
+    music_choices.append(Choice("custom", "📂 指定音乐文件路径"))
+
+    music_choice = inquirer.select(
+        message="选择背景音乐:",
+        choices=music_choices,
+    ).execute()
+
+    if music_choice == "custom":
+        music_path = inquirer.filepath(
+            message="音乐文件路径:",
+            validate=lambda x: Path(x).is_file(),
+        ).execute()
+    else:
+        music_path = music_choice
+        
+    music_volume = 0.3
+    if music_path != "none":
+        music_volume = float(inquirer.text(message="音乐音量 (0.0~1.0):", default="0.3").execute())
+
+    # 过渡效果
+    from tools.concat.ffmpeg_concat import TRANSITION_PRESETS
+    transition_choices = [
+        Choice(key, preset["name"]) for key, preset in TRANSITION_PRESETS.items()
+    ]
+    transition = inquirer.select(
+        message="选择图片间过渡效果:",
+        choices=transition_choices,
+        default="none",
+    ).execute()
+    
+    transition_duration = 0.0
+    if transition != "none":
+        transition_duration = float(inquirer.text(message="过渡时长 (秒):", default="1.0").execute())
+        
+    if _confirm_action(f"确认生成 {len(images)} 张图片的 Slideshow?"):
+        generate_slideshow(
+            image_paths=images,
+            texts=texts,
+            resolution=res,
+            duration_per_image=duration,
+            music_path=music_path if music_path != "none" else None,
+            music_volume=music_volume,
+            transition=transition,
+            transition_duration=transition_duration,
+        )
+
+
 def menu_clean():
     """清理 input 和 output 目录菜单"""
     target = inquirer.select(
@@ -1053,6 +1137,7 @@ def main():
                 Choice("filter", "🎨 滤镜效果 (Filter)"),
                 Choice("crop", "✂️  裁切比例 (Crop)"),
                 Choice("concat", "🎬 拼接视频 (Concat)"),
+                Choice("slideshow", "📸 幻灯片 (Slideshow)"),
                 Choice("bgm", "🎵 添加背景音乐 (BGM)"),
                 Choice("subtitle", "📝 字幕 (Subtitle)"),
                 Choice("mv", "🎵 歌词 MV 生成 (Lyric MV)"),
@@ -1082,7 +1167,7 @@ def main():
             continue
 
         # 获取输入
-        if module in ("add_watermark", "convert", "filter", "crop", "subtitle"):
+        if module in ("add_watermark", "convert", "filter", "crop", "subtitle", "slideshow"):
             media = get_input_media()
             if media is None:
                 continue
@@ -1099,6 +1184,12 @@ def main():
                 menu_crop(media)
             elif module == "subtitle":
                 menu_subtitle(media)
+            elif module == "slideshow":
+                images = [f for f in media if f.suffix.lower() in {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tiff", ".gif"}]
+                if not images:
+                    print("❌ 未找到图片文件")
+                    continue
+                menu_slideshow(images)
         else:
             videos = get_input_videos()
             if videos is None:
