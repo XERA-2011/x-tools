@@ -4,7 +4,7 @@ import tempfile
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
-from config import FFMPEG_BIN, OUTPUT_SLIDESHOW
+from config import FFMPEG_BIN, IMAGE_EXTENSIONS, OUTPUT_SLIDESHOW
 from tools.common import generate_output_name, logger
 from tools.concat.ffmpeg_concat import TRANSITION_PRESETS
 
@@ -84,6 +84,57 @@ def preprocess_image(image_path: Path, output_path: Path, text: str, target_w: i
         draw_text_with_stroke(draw, text, x, y, font, text_color="yellow", stroke_color="black", stroke_width=max(2, font_size // 15), bold=True)
 
     img.save(output_path, "JPEG", quality=95)
+
+
+def discover_slideshow_groups(base_dir: Path, recursive: bool = False) -> list[tuple[Path, list[Path]]]:
+    """
+    从目录中发现可批量生成幻灯片的图片分组。
+
+    返回:
+        [(目录路径, 该目录下图片列表), ...]
+    """
+    base_dir = Path(base_dir)
+    if not base_dir.is_dir():
+        return []
+
+    if recursive:
+        candidate_dirs = sorted({p.parent for p in base_dir.rglob("*") if p.is_file()})
+    else:
+        candidate_dirs = sorted(p for p in base_dir.iterdir() if p.is_dir())
+
+    groups: list[tuple[Path, list[Path]]] = []
+    for directory in candidate_dirs:
+        images = sorted(
+            p for p in directory.iterdir()
+            if p.is_file() and p.suffix.lower() in IMAGE_EXTENSIONS
+        )
+        if images:
+            groups.append((directory, images))
+    return groups
+
+
+def build_texts_from_filenames(image_paths: list[Path]) -> list[str]:
+    """
+    根据图片文件名自动生成文案:
+    - 去扩展名
+    - 将下划线/中划线替换为空格
+    """
+    texts: list[str] = []
+    for p in image_paths:
+        txt = p.stem.replace("_", " ").replace("-", " ").strip()
+        texts.append(txt)
+    return texts
+
+
+def load_texts_from_caption_file(caption_file: Path) -> list[str]:
+    """
+    从 captions.txt 读取文案（每行一句）。
+    """
+    if not caption_file.is_file():
+        return []
+
+    lines = caption_file.read_text(encoding="utf-8").splitlines()
+    return [line.strip() for line in lines if line.strip()]
 
 
 def generate_slideshow(
