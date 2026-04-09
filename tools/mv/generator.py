@@ -27,6 +27,7 @@ def generate_mv(
     highlight_color: str = "#FF3333",
     glow: bool = True,
     bilingual: bool = False,
+    bg_image_path: Path | None = None,
 ) -> dict:
     """
     生成歌词 MV 主函数
@@ -65,6 +66,7 @@ def generate_mv(
         fps=fps,
         highlight_color=highlight_color,
         glow=glow,
+        bg_image_path=bg_image_path,
     )
     
     total_frames = int(beat_info.duration * fps)

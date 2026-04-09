@@ -878,9 +878,10 @@ def menu_mv():
     ratio = inquirer.select(
         message="视频比例:",
         choices=[
-            Choice("16:9", "🖥️  16:9 横屏 (1920x1080)"),
             Choice("9:16", "📱 9:16 竖屏 (1080x1920)"),
-        ]
+            Choice("16:9", "🖥️  16:9 横屏 (1920x1080)"),
+        ],
+        default="9:16",
     ).execute()
     
     if ratio == "16:9":
@@ -922,6 +923,32 @@ def menu_mv():
         ).execute()
         lyrics_path = Path(path_str)
         
+    bg_choices = [Choice("none", "⬛ 纯黑背景")]
+    
+    images_dir = Path("images")
+    if images_dir.is_dir():
+        for img_file in images_dir.iterdir():
+            if img_file.is_file() and img_file.suffix.lower() in {".jpg", ".jpeg", ".png"}:
+                bg_choices.append(Choice(str(img_file), f"🖼️  {img_file.name}"))
+                
+    bg_choices.append(Choice("path", "📂 指定其他背景图路径"))
+
+    bg_mode = inquirer.select(
+        message="背景图:",
+        choices=bg_choices,
+        default="none"
+    ).execute()
+    
+    bg_image_path = None
+    if bg_mode == "path":
+        bg_path_str = inquirer.filepath(
+            message="背景图片路径 (.jpg, .png):",
+            validate=lambda x: Path(x).is_file(),
+        ).execute()
+        bg_image_path = Path(bg_path_str)
+    elif bg_mode != "none":
+        bg_image_path = Path(bg_mode)
+        
     if _confirm_action("确认生成歌词 MV?"):
         generate_mv(
             music_path=music_path,
@@ -929,6 +956,7 @@ def menu_mv():
             whisper_segments=whisper_segments,
             width=width,
             height=height,
+            bg_image_path=bg_image_path,
         )
 
 

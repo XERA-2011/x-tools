@@ -19,12 +19,27 @@ class LyricRenderer:
         fps: int = 30,
         highlight_color: str = "#FF3333",
         glow: bool = True,
+        bg_image_path: Path | None = None,
     ):
         self.width = width
         self.height = height
         self.fps = fps
         self.highlight_color = highlight_color
         self.glow = glow
+        self.bg_image_path = bg_image_path
+        
+        self.bg_image = None
+        if self.bg_image_path and Path(self.bg_image_path).is_file():
+            try:
+                import PIL.ImageOps
+                import PIL.ImageEnhance
+                bg_img = Image.open(self.bg_image_path).convert("RGBA")
+                self.bg_image = PIL.ImageOps.fit(bg_img, (self.width, self.height), Image.Resampling.LANCZOS)
+                # 降低背景亮度以凸显歌词
+                enhancer = PIL.ImageEnhance.Brightness(self.bg_image)
+                self.bg_image = enhancer.enhance(0.4)
+            except Exception as e:
+                print(f"Warning: Failed to load background image: {e}")
         
         # 字体路径 (优先使用系统粗体，或者回退到默认)
         self.font_path = self._get_default_font()
@@ -76,8 +91,11 @@ class LyricRenderer:
         beat_info: BeatInfo,
     ) -> Image.Image:
         """渲染单帧图像"""
-        # 创建纯黑背景
-        img = Image.new("RGBA", (self.width, self.height), (0, 0, 0, 255))
+        # 创建背景
+        if self.bg_image:
+            img = self.bg_image.copy()
+        else:
+            img = Image.new("RGBA", (self.width, self.height), (0, 0, 0, 255))
         draw = ImageDraw.Draw(img)
         
         # 获取当前歌词和前后歌词用于过渡
