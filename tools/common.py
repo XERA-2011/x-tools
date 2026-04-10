@@ -10,7 +10,7 @@ import uuid
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
-from typing import Callable, Generator, TYPE_CHECKING
+from typing import Callable, Generator, TypedDict, TYPE_CHECKING
 
 if TYPE_CHECKING:
     import cv2
@@ -38,6 +38,50 @@ logging.basicConfig(
 )
 logger = logging.getLogger("x-tools")
 console = Console()
+
+
+# ============================================================
+# 统一结果类型
+# ============================================================
+class ProcessResult(TypedDict, total=False):
+    """
+    各处理函数的统一返回类型 (基础字段)
+
+    必须包含:
+        output: 输出文件路径 (str)
+
+    可选包含 (各模块按需扩展):
+        size_mb: 输出文件大小 (MB)
+        duration: 视频时长 (秒)
+        frames_processed: 处理帧数
+        skipped: 是否跳过处理
+    """
+    output: str
+    size_mb: float
+    duration: float
+    frames_processed: int
+    skipped: bool
+
+
+class BatchItemResult(TypedDict, total=False):
+    """
+    批量处理中每个文件的结果
+
+    由 run_batch / batch_process 自动填充:
+        file: 源文件路径
+        status: "success" | "error"
+        elapsed: 处理耗时 (秒)
+        error: 错误信息 (仅 status="error" 时)
+
+    其余字段来自各处理函数的 ProcessResult
+    """
+    file: str
+    status: str
+    elapsed: float
+    error: str
+    # + ProcessResult 的所有字段 (output, size_mb, ...)
+    output: str
+    size_mb: float
 
 
 # ============================================================
