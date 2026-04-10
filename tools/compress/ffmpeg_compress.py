@@ -7,10 +7,9 @@ FFmpeg 视频无损/视觉无损压缩模块
 import subprocess
 from pathlib import Path
 
-from config import FFMPEG_BIN, OUTPUT_DIR
+from config import FFMPEG_BIN, OUTPUT_COMPRESS
 from tools.common import generate_output_name, logger
 
-OUTPUT_COMPRESS = OUTPUT_DIR / "compress"
 
 def compress_video(
     input_video: str | Path,

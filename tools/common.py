@@ -1,6 +1,7 @@
 """
 公共工具模块 — 批量调度、日志、进度条、视频信息获取
 """
+from __future__ import annotations
 import json
 import logging
 import subprocess
@@ -9,10 +10,11 @@ import uuid
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
-from typing import Callable, Generator
+from typing import Callable, Generator, TYPE_CHECKING
 
-import cv2
-import numpy as np
+if TYPE_CHECKING:
+    import cv2
+    import numpy as np
 from rich.console import Console
 from rich.progress import (
     BarColumn,
@@ -326,19 +328,20 @@ def batch_process(
         else:
             # 并行执行
             with ProcessPoolExecutor(max_workers=max_workers) as executor:
-                futures = {
-                    executor.submit(process_fn, v, **kwargs): v for v in videos
-                }
+                futures = {}
+                for v in videos:
+                    f = executor.submit(process_fn, v, **kwargs)
+                    futures[f] = (v, time.time())
+
                 for future in as_completed(futures):
-                    video = futures[future]
-                    start_time = time.time() # 注意:这是近似时间,并行下不准确
+                    video, submit_time = futures[future]
+                    elapsed = time.time() - submit_time
                     try:
                         result = future.result()
-                        # 这里无法准确获取单个任务执行时间,暂用0
-                        results.append({"file": str(video), "status": "success", "elapsed": 0.0, **result})
+                        results.append({"file": str(video), "status": "success", "elapsed": elapsed, **result})
                     except Exception as e:
                         logger.error(f"处理失败: {video.name} — {e}")
-                        results.append({"file": str(video), "status": "error", "error": str(e), "elapsed": 0.0})
+                        results.append({"file": str(video), "status": "error", "error": str(e), "elapsed": elapsed})
                     finally:
                         progress.advance(task_id)
 
@@ -446,6 +449,8 @@ class VideoFrameProcessor:
         self.frames_processed = 0
 
     def __enter__(self):
+        import cv2
+        self._cv2 = cv2
         self.cap = cv2.VideoCapture(str(self.input_path))
         if not self.cap.isOpened():
             raise RuntimeError(f"无法打开视频: {self.input_path}")
@@ -471,6 +476,7 @@ class VideoFrameProcessor:
         h = height if height > 0 else self.height
         f = fps if fps > 0 else self.fps
         
+        cv2 = self._cv2
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
         self.writer = cv2.VideoWriter(str(self.temp_path), fourcc, f, (w, h))
 
@@ -686,6 +692,7 @@ def load_or_create_mask(
         regions = _scale_regions(regions, ref_width, ref_height, width, height)
 
     if mask_path:
+        import cv2
         mask = cv2.imread(str(mask_path), cv2.IMREAD_GRAYSCALE)
         if mask is None:
             raise FileNotFoundError(f"无法读取 mask: {mask_path}")

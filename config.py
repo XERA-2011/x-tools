@@ -23,6 +23,7 @@ OUTPUT_BGM = OUTPUT_DIR / "bgm"
 OUTPUT_SUBTITLE = OUTPUT_DIR / "subtitle"
 
 OUTPUT_MV = OUTPUT_DIR / "mv"
+OUTPUT_COMPRESS = OUTPUT_DIR / "compress"
 OUTPUT_SLIDESHOW = OUTPUT_DIR / "slideshow"
 OUTPUT_PDF_SPLIT = OUTPUT_DIR / "pdf_split"
 
@@ -34,6 +35,7 @@ MUSIC_DIR = PROJECT_ROOT / "music"
 # ============================================================
 VIDEO_EXTENSIONS = {".mp4", ".avi", ".mov", ".mkv", ".flv", ".wmv", ".webm", ".m4v"}
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tiff"}
+AUDIO_EXTENSIONS = {".mp3", ".wav", ".aac", ".m4a", ".flac", ".ogg", ".wma"}
 
 # ============================================================
 # FFmpeg 配置
@@ -116,8 +118,8 @@ def ensure_dirs():
     for d in [INPUT_DIR, OUTPUT_WATERMARK,
               OUTPUT_ADD_WATERMARK, OUTPUT_UPSCALE, OUTPUT_INTERPOLATION,
               OUTPUT_CONVERT, OUTPUT_FILTER, OUTPUT_CROP, OUTPUT_CONCAT,
-              OUTPUT_BGM, OUTPUT_SUBTITLE, OUTPUT_MV, OUTPUT_SLIDESHOW,
-              OUTPUT_PDF_SPLIT, MUSIC_DIR]:
+              OUTPUT_BGM, OUTPUT_SUBTITLE, OUTPUT_MV, OUTPUT_COMPRESS,
+              OUTPUT_SLIDESHOW, OUTPUT_PDF_SPLIT, MUSIC_DIR]:
         d.mkdir(parents=True, exist_ok=True)
 
 

@@ -15,7 +15,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from config import FFMPEG_BIN, FFPROBE_BIN, MUSIC_DIR, OUTPUT_CONCAT
+from config import AUDIO_EXTENSIONS, FFMPEG_BIN, FFPROBE_BIN, MUSIC_DIR, OUTPUT_CONCAT
 from tools.common import generate_output_name, get_video_info, logger
 from tools.ffmpeg.ffmpeg_core import (
     build_base_filters,
@@ -23,8 +23,6 @@ from tools.ffmpeg.ffmpeg_core import (
     compute_total_duration,
 )
 
-# 支持的音频格式
-AUDIO_EXTENSIONS = {".mp3", ".wav", ".aac", ".m4a", ".flac", ".ogg", ".wma"}
 
 
 def get_available_music() -> list[Path]:

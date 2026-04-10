@@ -26,7 +26,6 @@ def batch_interpolate_ffmpeg(
         target_fps: 目标帧率
         mode: 插帧模式
     """
-    ensure_dirs()
     videos = resolve_media_files(input_dir, videos, kind="video")
     return run_batch(
         videos,
@@ -52,7 +51,6 @@ def batch_interpolate_rife(
         multiplier: 帧率倍数
         target_fps: 目标帧率
     """
-    ensure_dirs()
     videos = resolve_media_files(input_dir, videos, kind="video")
     from tools.interpolation.rife import interpolate_video_rife
     return run_batch(
