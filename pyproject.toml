@@ -19,7 +19,7 @@ dependencies = [
 x-tools = "main:main"
 
 [tool.setuptools.packages.find]
-include = ["tools*", "config"]
+include = ["tools*", "menus*", "config"]
 
 [tool.setuptools]
 py-modules = ["config", "main"]
@@ -36,3 +36,7 @@ fix = false
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
 ignore = []
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
