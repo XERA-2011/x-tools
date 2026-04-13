@@ -11,7 +11,6 @@ import logging
 from pathlib import Path
 
 from config import OUTPUT_PDF_SPLIT
-from tools.common import generate_output_name
 
 logger = logging.getLogger("x-tools")
 
@@ -34,6 +33,9 @@ def get_pdf_info(pdf_path: Path) -> dict:
     Returns:
         {"pages": int, "title": str, "size_mb": float}
     """
+    if not _ensure_pypdf():
+        return {"pages": 0, "title": "", "author": "", "size_mb": 0.0}
+
     import pypdf
     
     reader = pypdf.PdfReader(str(pdf_path))
@@ -58,11 +60,11 @@ def split_by_every_page(pdf_path: Path, output_dir: Path | None = None) -> dict:
     Returns:
         {"output": list[str], "pages": int}
     """
-    import pypdf
-    
     if not _ensure_pypdf():
         return {"output": [], "pages": 0}
-    
+
+    import pypdf
+
     out_dir = output_dir or OUTPUT_PDF_SPLIT
     out_dir.mkdir(parents=True, exist_ok=True)
     
@@ -104,11 +106,11 @@ def split_by_range(
     Returns:
         {"output": list[str], "pages": int}
     """
-    import pypdf
-    
     if not _ensure_pypdf():
         return {"output": [], "pages": 0}
-    
+
+    import pypdf
+
     out_dir = output_dir or OUTPUT_PDF_SPLIT
     out_dir.mkdir(parents=True, exist_ok=True)
     
@@ -160,11 +162,11 @@ def split_by_chunk(
     Returns:
         {"output": list[str], "pages": int}
     """
-    import pypdf
-    
     if not _ensure_pypdf():
         return {"output": [], "pages": 0}
-    
+
+    import pypdf
+
     out_dir = output_dir or OUTPUT_PDF_SPLIT
     out_dir.mkdir(parents=True, exist_ok=True)
     
@@ -211,11 +213,11 @@ def extract_pages(
     Returns:
         {"output": str, "pages": int}
     """
-    import pypdf
-    
     if not _ensure_pypdf():
         return {"output": "", "pages": 0}
-    
+
+    import pypdf
+
     out_dir = output_dir or OUTPUT_PDF_SPLIT
     out_dir.mkdir(parents=True, exist_ok=True)
     

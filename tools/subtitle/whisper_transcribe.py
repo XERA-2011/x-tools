@@ -60,7 +60,8 @@ def _segments_to_srt(segments: list, language: str = "") -> str:
             pass
 
     lines = []
-    for i, seg in enumerate(segments, 1):
+    srt_index = 1
+    for seg in segments:
         start = _format_timestamp(seg["start"])
         end = _format_timestamp(seg["end"])
         text = seg["text"].strip()
@@ -75,9 +76,10 @@ def _segments_to_srt(segments: list, language: str = "") -> str:
         translated = seg.get("translated_text", "").strip()
         if translated and translated != text:
             # 翻译后语言作为主要语言显示 (第一行)，原文作为次要语言 (第二行)
-            lines.append(f"{i}\n{start} --> {end}\n{translated}\n{text}\n")
+            lines.append(f"{srt_index}\n{start} --> {end}\n{translated}\n{text}\n")
         else:
-            lines.append(f"{i}\n{start} --> {end}\n{text}\n")
+            lines.append(f"{srt_index}\n{start} --> {end}\n{text}\n")
+        srt_index += 1
     return "\n".join(lines)
 
 

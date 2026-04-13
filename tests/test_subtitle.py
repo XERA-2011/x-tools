@@ -67,7 +67,7 @@ class TestSegmentsToSrt:
         ]
         result = _segments_to_srt(segments)
         assert "Valid" in result
-        assert result.strip().startswith("2")  # 序号从 2 开始 (因为 1 被跳过)
+        assert result.strip().startswith("1")
 
     def test_bilingual_segments(self):
         """含 translated_text 应输出双语"""

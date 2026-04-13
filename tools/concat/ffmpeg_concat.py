@@ -12,17 +12,15 @@
   python tools/concat/ffmpeg_concat.py video1.mp4 video2.mp4 -m music/bgm.mp3
 """
 import subprocess
-import tempfile
 from pathlib import Path
 
-from config import AUDIO_EXTENSIONS, FFMPEG_BIN, FFPROBE_BIN, MUSIC_DIR, OUTPUT_CONCAT
+from config import AUDIO_EXTENSIONS, FFMPEG_BIN, MUSIC_DIR, OUTPUT_CONCAT
 from tools.common import generate_output_name, get_video_info, logger
 from tools.ffmpeg.ffmpeg_core import (
     build_base_filters,
     build_concat_graph,
     compute_total_duration,
 )
-
 
 
 def get_available_music() -> list[Path]:
@@ -148,6 +146,24 @@ def concat_videos(
         audio_fade_out=audio_fade_out,
         include_audio=include_audio,
     )
+
+    # 过渡时长安全校验: 过长会造成 xfade/acrossfade 滤镜图非法
+    if xfade_type and n >= 2:
+        min_dur = min(durations) if durations else 0.0
+        max_td = max(0.0, min_dur - 0.05)
+        if td <= 0:
+            logger.warning(f"过渡时长 {td}s 非法，已禁用转场")
+            xfade_type = None
+            td = 0.0
+        elif max_td <= 0:
+            logger.warning("视频过短，不适合转场，已禁用转场")
+            xfade_type = None
+            td = 0.0
+        elif td >= max_td:
+            old_td = td
+            td = round(max_td, 3)
+            logger.warning(f"过渡时长 {old_td}s 过长，已自动调整为 {td}s")
+
     filter_parts = build_concat_graph(
         filter_parts=filter_parts,
         n=n,
@@ -212,7 +228,7 @@ def concat_videos(
         str(output_path),
     ]
 
-    logger.info(f"开始拼接...")
+    logger.info("开始拼接...")
 
     result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
     if result.returncode != 0:
