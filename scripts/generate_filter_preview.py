@@ -19,8 +19,8 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from config import FFMPEG_BIN
-from tools.filter.ffmpeg_filter import FILTER_PRESETS
+from config import FFMPEG_BIN  # noqa: E402
+from tools.filter.ffmpeg_filter import FILTER_PRESETS  # noqa: E402
 
 # ============================================================
 # 配置

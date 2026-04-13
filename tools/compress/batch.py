@@ -8,7 +8,6 @@ from tools.common import resolve_media_files, run_batch
 from tools.compress.ffmpeg_compress import compress_video
 
 
-
 def batch_compress(
     input_dir: str | Path | None = None,
     files: list[Path] | None = None,

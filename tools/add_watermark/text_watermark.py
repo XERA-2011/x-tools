@@ -470,14 +470,29 @@ if __name__ == "__main__":
     parser.add_argument("-t", "--text", required=True, help="水印文字")
     parser.add_argument("-o", "--output", help="输出路径")
     parser.add_argument("--font", help="字体文件路径 (.ttf/.ttc)")
-    parser.add_argument("--font-size", type=int, default=ADD_WATERMARK_FONT_SIZE, help=f"字号 (默认: {ADD_WATERMARK_FONT_SIZE})")
-    parser.add_argument("--opacity", type=float, default=ADD_WATERMARK_OPACITY, help=f"透明度 0.0~1.0 (默认: {ADD_WATERMARK_OPACITY})")
+    parser.add_argument(
+        "--font-size",
+        type=int,
+        default=ADD_WATERMARK_FONT_SIZE,
+        help=f"字号 (默认: {ADD_WATERMARK_FONT_SIZE})",
+    )
+    parser.add_argument(
+        "--opacity",
+        type=float,
+        default=ADD_WATERMARK_OPACITY,
+        help=f"透明度 0.0~1.0 (默认: {ADD_WATERMARK_OPACITY})",
+    )
     parser.add_argument(
         "--position",
         default=ADD_WATERMARK_POSITION,
         help=f"位置: bottom-right/bottom-left/top-right/top-left/center (默认: {ADD_WATERMARK_POSITION})",
     )
-    parser.add_argument("--margin", type=int, default=ADD_WATERMARK_MARGIN, help=f"边距像素 (默认: {ADD_WATERMARK_MARGIN})")
+    parser.add_argument(
+        "--margin",
+        type=int,
+        default=ADD_WATERMARK_MARGIN,
+        help=f"边距像素 (默认: {ADD_WATERMARK_MARGIN})",
+    )
 
     # 颜色参数需要解析 hex 或 r,g,b. Config 默认是 tuple. CLI 暂时默认 white.
     # 此处简化 CLI 颜色支持

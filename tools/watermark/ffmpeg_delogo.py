@@ -10,7 +10,6 @@ FFmpeg delogo 快速去水印模块
 使用方式:
   python tools/watermark/ffmpeg_delogo.py video.mp4 --region 10,10,200,60
 """
-import subprocess
 from pathlib import Path
 
 from config import FFMPEG_BIN, OUTPUT_WATERMARK
@@ -137,6 +136,7 @@ def remove_watermark_delogo(
 # ============================================================
 if __name__ == "__main__":
     import argparse
+
     from tools.common import parse_region
 
     parser = argparse.ArgumentParser(description="FFmpeg delogo 快速去水印")

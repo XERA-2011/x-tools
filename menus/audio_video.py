@@ -3,7 +3,6 @@ from pathlib import Path
 
 from InquirerPy import inquirer
 from InquirerPy.base.control import Choice
-from InquirerPy.separator import Separator
 
 from menus._prompts import confirm_action
 

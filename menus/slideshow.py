@@ -12,13 +12,13 @@ from menus._prompts import confirm_action
 
 def menu_slideshow(images: list[Path]):
     """幻灯片 (Slideshow) 菜单"""
+    from tools.concat.ffmpeg_concat import TRANSITION_PRESETS, get_available_music
     from tools.slideshow.generator import (
         build_texts_from_filenames,
         discover_slideshow_groups,
         generate_slideshow,
         load_texts_from_caption_file,
     )
-    from tools.concat.ffmpeg_concat import get_available_music, TRANSITION_PRESETS
     
     mode = inquirer.select(
         message="幻灯片模式:",

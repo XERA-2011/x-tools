@@ -11,7 +11,6 @@ FFmpeg 传统视频放大模块
   python tools/upscale/ffmpeg_scale.py video.mp4 --scale 2
   python tools/upscale/ffmpeg_scale.py video.mp4 --width 1920 --height 1080
 """
-import subprocess
 from pathlib import Path
 
 from config import FFMPEG_BIN, OUTPUT_UPSCALE, UPSCALE_FACTOR

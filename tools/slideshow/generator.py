@@ -1,7 +1,7 @@
-import os
 import subprocess
 import tempfile
 from pathlib import Path
+
 from PIL import Image, ImageDraw, ImageFont
 
 from config import FFMPEG_BIN, IMAGE_EXTENSIONS, OUTPUT_SLIDESHOW
@@ -76,12 +76,21 @@ def preprocess_image(image_path: Path, output_path: Path, text: str, target_w: i
 
         bbox = draw.textbbox((0, 0), text, font=font)
         text_w = bbox[2] - bbox[0]
-        text_h = bbox[3] - bbox[1]
 
         x = (target_w - text_w) // 2
         y = paste_y + int(new_h * 0.8)
 
-        draw_text_with_stroke(draw, text, x, y, font, text_color="yellow", stroke_color="black", stroke_width=max(2, font_size // 15), bold=True)
+        draw_text_with_stroke(
+            draw,
+            text,
+            x,
+            y,
+            font,
+            text_color="yellow",
+            stroke_color="black",
+            stroke_width=max(2, font_size // 15),
+            bold=True,
+        )
 
     img.save(output_path, "JPEG", quality=95)
 

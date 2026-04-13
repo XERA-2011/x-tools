@@ -76,7 +76,13 @@ def _ffmpeg_rescale(input_path: Path, output_path: Path, target_width: int, targ
         raise RuntimeError(f"FFmpeg 缩放失败:\n{result.stderr[-500:]}")
 
 
-def _run_realesrgan_on_frames(input_dir: Path, output_dir: Path, total_frames: int, scale: int = 2, model: str = "realesr-animevideov3"):
+def _run_realesrgan_on_frames(
+    input_dir: Path,
+    output_dir: Path,
+    total_frames: int,
+    scale: int = 2,
+    model: str = "realesr-animevideov3",
+):
     """
     对一个目录的图片帧批量执行 realesrgan-ncnn-vulkan 超分，带进度条
     """

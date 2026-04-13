@@ -1,6 +1,8 @@
 """
 x-tools 全局配置
 """
+import os
+import shutil
 from pathlib import Path
 
 # ============================================================
@@ -40,8 +42,6 @@ AUDIO_EXTENSIONS = {".mp3", ".wav", ".aac", ".m4a", ".flac", ".ogg", ".wma"}
 # ============================================================
 # FFmpeg 配置
 # ============================================================
-import os
-import shutil
 
 # 尝试寻找更全功能的 ffmpeg-full (macOS Homebrew keg-only), 因为标准 ffmpeg(8.0+) 不包含 libass
 _ffmpeg_full = Path("/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg")

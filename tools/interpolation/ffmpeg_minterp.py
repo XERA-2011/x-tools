@@ -11,7 +11,6 @@ FFmpeg 运动补偿插帧模块
   python tools/interpolation/ffmpeg_minterp.py video.mp4 --target-fps 60
   python tools/interpolation/ffmpeg_minterp.py video.mp4 --target-fps 48 --mode blend
 """
-import subprocess
 from pathlib import Path
 
 from config import FFMPEG_BIN, INTERPOLATION_TARGET_FPS, OUTPUT_INTERPOLATION

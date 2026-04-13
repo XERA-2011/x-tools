@@ -3,12 +3,12 @@
 
 使用 Pillow 逐帧生成动感歌词图像
 """
-import math
 from pathlib import Path
-from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
-from tools.mv.parser import LyricLine
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
+
 from tools.mv.beat_detector import BeatInfo
+from tools.mv.parser import LyricLine
 
 
 class LyricRenderer:
@@ -31,8 +31,8 @@ class LyricRenderer:
         self.bg_image = None
         if self.bg_image_path and Path(self.bg_image_path).is_file():
             try:
-                import PIL.ImageOps
                 import PIL.ImageEnhance
+                import PIL.ImageOps
                 bg_img = Image.open(self.bg_image_path).convert("RGBA")
                 self.bg_image = PIL.ImageOps.fit(bg_img, (self.width, self.height), Image.Resampling.LANCZOS)
                 # 降低背景亮度以凸显歌词
@@ -48,8 +48,8 @@ class LyricRenderer:
         self.base_font_size = int(min(width, height) * 0.12)
         
     def _get_default_font(self) -> str:
-        import platform
         import os
+        import platform
         system = platform.system()
         paths = []
         if system == "Darwin":
@@ -96,8 +96,6 @@ class LyricRenderer:
             img = self.bg_image.copy()
         else:
             img = Image.new("RGBA", (self.width, self.height), (0, 0, 0, 255))
-        draw = ImageDraw.Draw(img)
-        
         # 获取当前歌词和前后歌词用于过渡
         current_line = None
         for line in lyrics:
@@ -116,10 +114,6 @@ class LyricRenderer:
         # 音量包络驱动的透明度或色散
         volume = beat_info.get_volume_at(time)
         opacity = int(255 * (0.8 + volume * 0.2))
-        
-        # 当前句子的进度 (0.0 -> 1.0)
-        line_duration = current_line.end_time - current_line.start_time
-        line_progress = (time - current_line.start_time) / line_duration if line_duration > 0 else 0
         
         # 进退场淡入淡出动画
         fade_alpha = 1.0
@@ -208,10 +202,9 @@ class LyricRenderer:
         if not lines_to_draw:
             return img.convert("RGB")
             
-        total_h = sum(l["height"] for l in lines_to_draw) + line_spacing * (len(lines_to_draw) - 1)
+        total_h = sum(line["height"] for line in lines_to_draw) + line_spacing * (len(lines_to_draw) - 1)
         start_y = (self.height - total_h) / 2
         
-        import random
 
         for row in lines_to_draw:
             start_x = (self.width - row["width"]) / 2

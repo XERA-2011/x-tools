@@ -16,19 +16,31 @@ from tools.common import generate_output_name, get_video_info, logger
 SUBTITLE_STYLES = {
     "default": {
         "name": "📝 默认 (白字黑边)",
-        "ass_style": "Style: Default,Arial,22,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,2,1,2,10,10,30,1",
+        "ass_style": (
+            "Style: Default,Arial,22,&H00FFFFFF,&H000000FF,&H00000000,"
+            "&H80000000,0,0,0,0,100,100,0,0,1,2,1,2,10,10,30,1"
+        ),
     },
     "large": {
         "name": "🔤 大字 (醒目)",
-        "ass_style": "Style: Default,Arial,28,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,3,2,2,10,10,25,1",
+        "ass_style": (
+            "Style: Default,Arial,28,&H00FFFFFF,&H000000FF,&H00000000,"
+            "&H80000000,0,0,0,0,100,100,0,0,1,3,2,2,10,10,25,1"
+        ),
     },
     "cinema": {
         "name": "🎬 影院风 (黄字)",
-        "ass_style": "Style: Default,Arial,24,&H0000FFFF,&H000000FF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,2,1,2,10,10,30,1",
+        "ass_style": (
+            "Style: Default,Arial,24,&H0000FFFF,&H000000FF,&H00000000,"
+            "&H80000000,0,0,0,0,100,100,0,0,1,2,1,2,10,10,30,1"
+        ),
     },
     "minimal": {
         "name": "✨ 简约 (小字无阴影)",
-        "ass_style": "Style: Default,Arial,18,&H00FFFFFF,&H000000FF,&H00333333,&H00000000,0,0,0,0,100,100,0,0,1,1,0,2,10,10,20,1",
+        "ass_style": (
+            "Style: Default,Arial,18,&H00FFFFFF,&H000000FF,&H00333333,"
+            "&H00000000,0,0,0,0,100,100,0,0,1,1,0,2,10,10,20,1"
+        ),
     },
 }
 
@@ -47,7 +59,6 @@ def _srt_to_ass(srt_path: Path, ass_path: Path, style_line: str, width: int = 19
         values = style_parts[1].split(",")
         if len(values) >= 23:
             # FontSize at index 2 (默认 22 偏小，改基准为 45)
-            fontsize = float(values[2])
             new_fontsize = max(int(45 * base_scale), 20)
             values[2] = str(new_fontsize)
             
@@ -73,6 +84,12 @@ def _srt_to_ass(srt_path: Path, ass_path: Path, style_line: str, width: int = 19
 
 
     # ASS 文件头
+    style_format = (
+        "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, "
+        "OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, "
+        "ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, "
+        "Alignment, MarginL, MarginR, MarginV, Encoding"
+    )
     header = f"""[Script Info]
 Title: x-tools subtitles
 ScriptType: v4.00+
@@ -80,7 +97,7 @@ PlayResX: {width}
 PlayResY: {height}
 
 [V4+ Styles]
-Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+{style_format}
 {style_line}
 
 [Events]
@@ -183,7 +200,6 @@ def burn_subtitles(
     # 将临时 ASS 文件放在视频同目录下，使用简单文件名
     # 避免 Windows 上 FFmpeg ass 滤镜解析绝对路径时
     # 把 C: 当作协议前缀导致路径错误的问题
-    import shutil
     import uuid
     tmp_ass_name = f"_tmp_sub_{uuid.uuid4().hex[:8]}.ass"
     tmp_ass = video_path.parent / tmp_ass_name

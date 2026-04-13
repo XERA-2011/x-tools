@@ -5,10 +5,9 @@
   - librosa (推荐, 精准节拍/onset/BPM 检测)
   - FFmpeg (轻量 fallback, 基于音量包络分析)
 """
-import subprocess
 import json
 import re
-import tempfile
+import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -76,7 +75,6 @@ def detect_beats(audio_path: str | Path) -> BeatInfo:
 def _detect_beats_librosa(audio_path: Path) -> BeatInfo:
     """使用 librosa 进行精准节拍检测"""
     import librosa
-    import numpy as np
 
     logger.info("使用 librosa 分析节拍...")
 

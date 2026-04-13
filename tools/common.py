@@ -2,18 +2,19 @@
 公共工具模块 — 批量调度、日志、进度条、视频信息获取
 """
 from __future__ import annotations
+
 import json
 import logging
 import subprocess
 import time
 import uuid
+from collections.abc import Callable, Generator
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
-from typing import Callable, Generator, TypedDict, TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict
 
 if TYPE_CHECKING:
-    import cv2
     import numpy as np
 from rich.console import Console
 from rich.progress import (

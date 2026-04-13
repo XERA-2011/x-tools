@@ -283,14 +283,29 @@ if __name__ == "__main__":
     parser.add_argument("input", help="输入文件路径 (图片或视频)")
     parser.add_argument("-w", "--watermark", required=True, help="水印 Logo 图片路径 (推荐 PNG)")
     parser.add_argument("-o", "--output", help="输出路径")
-    parser.add_argument("--scale", type=float, default=ADD_WATERMARK_LOGO_SCALE, help=f"Logo 大小比例 (默认: {ADD_WATERMARK_LOGO_SCALE})")
-    parser.add_argument("--opacity", type=float, default=ADD_WATERMARK_OPACITY, help=f"透明度 0.0~1.0 (默认: {ADD_WATERMARK_OPACITY})")
+    parser.add_argument(
+        "--scale",
+        type=float,
+        default=ADD_WATERMARK_LOGO_SCALE,
+        help=f"Logo 大小比例 (默认: {ADD_WATERMARK_LOGO_SCALE})",
+    )
+    parser.add_argument(
+        "--opacity",
+        type=float,
+        default=ADD_WATERMARK_OPACITY,
+        help=f"透明度 0.0~1.0 (默认: {ADD_WATERMARK_OPACITY})",
+    )
     parser.add_argument(
         "--position",
         default=ADD_WATERMARK_POSITION,
         help=f"位置: bottom-right/bottom-left/top-right/top-left/center (默认: {ADD_WATERMARK_POSITION})",
     )
-    parser.add_argument("--margin", type=int, default=ADD_WATERMARK_MARGIN, help=f"边距像素 (默认: {ADD_WATERMARK_MARGIN})")
+    parser.add_argument(
+        "--margin",
+        type=int,
+        default=ADD_WATERMARK_MARGIN,
+        help=f"边距像素 (默认: {ADD_WATERMARK_MARGIN})",
+    )
 
     args = parser.parse_args()
 

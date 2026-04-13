@@ -5,7 +5,6 @@ from InquirerPy import inquirer
 from InquirerPy.base.control import Choice
 
 from config import VIDEO_EXTENSIONS
-from menus._prompts import confirm_action
 
 
 def menu_subtitle(media: list[Path]):

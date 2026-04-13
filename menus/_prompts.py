@@ -9,7 +9,7 @@ from InquirerPy import inquirer
 from InquirerPy.base.control import Choice
 from InquirerPy.separator import Separator
 
-from config import IMAGE_EXTENSIONS, INPUT_DIR
+from config import INPUT_DIR
 from tools.common import scan_media, scan_videos
 
 

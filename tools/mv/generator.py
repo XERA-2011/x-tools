@@ -2,19 +2,14 @@
 歌词 MV 生成主控
 整合解析、节拍、渲染和导出网络
 """
-import os
-import shutil
-import tempfile
-import struct
 from pathlib import Path
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from config import FFMPEG_BIN, OUTPUT_MV
-from tools.common import generate_output_name, logger, get_video_info
-
-from tools.mv.parser import load_lyrics, from_whisper_segments
+from tools.common import generate_output_name, logger
 from tools.mv.beat_detector import detect_beats
+from tools.mv.parser import from_whisper_segments, load_lyrics
 from tools.mv.renderer import LyricRenderer
+
 
 def generate_mv(
     music_path: Path,
@@ -104,7 +99,7 @@ def generate_mv(
                 # 写入管道
                 process.stdin.write(img.tobytes())
                 progress.advance(task)
-        except IOError as e:    
+        except OSError as e:    
             logger.error(f"Pipe broken: {e}")
         finally:
             if process.stdin:

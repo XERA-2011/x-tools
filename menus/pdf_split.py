@@ -13,12 +13,12 @@ from menus._prompts import confirm_action
 def menu_pdf_split():
     """PDF 拆分菜单"""
     from tools.pdf_split.splitter import (
+        _ensure_pypdf,
+        extract_pages,
         get_pdf_info,
+        split_by_chunk,
         split_by_every_page,
         split_by_range,
-        split_by_chunk,
-        extract_pages,
-        _ensure_pypdf,
     )
 
     if not _ensure_pypdf():
@@ -85,7 +85,7 @@ def menu_pdf_split():
         choices=[
             Choice("every", "📑 按页拆分 (每页生成一个 PDF)"),
             Choice("range", "📐 按页码范围拆分 (如 1-5, 6-10)"),
-            Choice("chunk", f"📦 按固定页数拆分 (每 N 页一份)"),
+            Choice("chunk", "📦 按固定页数拆分 (每 N 页一份)"),
             Choice("extract", "🔍 提取指定页码 (合并为一个 PDF)"),
             Separator(),
             Choice("back", "⬅️  返回上一级"),

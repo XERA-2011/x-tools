@@ -49,7 +49,9 @@ FILTER_PRESETS = {
         "desc": "CCD 德味色彩, 高饱和油画质感, 浓郁暖调, 经典数码徕卡",
         "vf": "eq=contrast=1.2:brightness=-0.01:saturation=1.25,"
               "colorbalance=rs=0.1:gs=0.04:bs=-0.06:rm=0.08:gm=0.05:bm=-0.04:rh=0.05:gh=0.02:bh=-0.03,"
-              "curves=r='0/0 0.4/0.44 0.7/0.75 1/1':g='0/0 0.4/0.42 0.7/0.73 1/0.98':b='0/0.02 0.4/0.38 0.7/0.68 1/0.9',"
+              "curves=r='0/0 0.4/0.44 0.7/0.75 1/1':"
+              "g='0/0 0.4/0.42 0.7/0.73 1/0.98':"
+              "b='0/0.02 0.4/0.38 0.7/0.68 1/0.9',"
               "vignette=PI/5",
     },
 }
@@ -169,7 +171,6 @@ def preview_filter(input_path: str | Path):
     """
     import shutil
     import tempfile
-    import threading
 
     input_path = Path(input_path)
     if not input_path.is_file():

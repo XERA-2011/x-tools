@@ -1,7 +1,7 @@
 """
 config.py 单元测试
 """
-from config import clamp, AUDIO_EXTENSIONS, VIDEO_EXTENSIONS, IMAGE_EXTENSIONS
+from config import AUDIO_EXTENSIONS, IMAGE_EXTENSIONS, VIDEO_EXTENSIONS, clamp
 
 
 class TestClamp:

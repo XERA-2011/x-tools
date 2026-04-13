@@ -1,5 +1,4 @@
 """清理文件菜单"""
-from pathlib import Path
 
 from InquirerPy import inquirer
 from InquirerPy.base.control import Choice
