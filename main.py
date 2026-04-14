@@ -77,9 +77,12 @@ def main():
         elif module == "pdf_split":
             from menus.pdf_split import menu_pdf_split
             menu_pdf_split()
+        elif module == "slideshow":
+            from menus.slideshow import menu_slideshow
+            menu_slideshow()
 
         # 需要媒体文件 (视频 + 图片) 的模块
-        elif module in ("add_watermark", "convert", "filter", "crop", "subtitle", "slideshow"):
+        elif module in ("add_watermark", "convert", "filter", "crop", "subtitle"):
             media = get_input_media()
             if media is None:
                 continue
@@ -102,13 +105,6 @@ def main():
             elif module == "subtitle":
                 from menus.subtitle import menu_subtitle
                 menu_subtitle(media)
-            elif module == "slideshow":
-                images = [f for f in media if f.suffix.lower() in IMAGE_EXTENSIONS]
-                if not images:
-                    print("❌ 未找到图片文件")
-                    continue
-                from menus.slideshow import menu_slideshow
-                menu_slideshow(images)
 
         # 需要视频文件的模块
         else:

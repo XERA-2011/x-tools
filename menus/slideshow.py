@@ -6,11 +6,11 @@ from InquirerPy import inquirer
 from InquirerPy.base.control import Choice
 from InquirerPy.separator import Separator
 
-from config import INPUT_DIR, OUTPUT_DIR
-from menus._prompts import confirm_action
+from config import INPUT_DIR, OUTPUT_DIR, IMAGE_EXTENSIONS
+from menus._prompts import confirm_action, get_input_media
 
 
-def menu_slideshow(images: list[Path]):
+def menu_slideshow():
     """幻灯片 (Slideshow) 菜单"""
     from tools.concat.ffmpeg_concat import TRANSITION_PRESETS, get_available_music
     from tools.slideshow.generator import (
@@ -32,6 +32,16 @@ def menu_slideshow(images: list[Path]):
 
     if mode == "back":
         return
+
+    images = None
+    if mode == "custom":
+        media = get_input_media()
+        if media is None:
+            return
+        images = [f for f in media if f.suffix.lower() in IMAGE_EXTENSIONS]
+        if not images:
+            print("❌ 未找到图片文件")
+            return
 
     # 背景音乐（两种模式共用）
     available_music = get_available_music()
@@ -68,9 +78,6 @@ def menu_slideshow(images: list[Path]):
         transition_duration = float(inquirer.text(message="过渡时长 (秒):", default="1.0").execute())
 
     if mode == "custom":
-        if len(images) < 1:
-            print("❌ 未找到图片")
-            return
 
         print(f"\n将按以下顺序将 {len(images)} 张图片拼接为视频:")
         for i, img in enumerate(images, 1):
@@ -134,7 +141,7 @@ def menu_slideshow(images: list[Path]):
     print(f"\n已发现 {len(groups)} 个可批量出片目录:")
     for idx, (group_dir, group_images) in enumerate(groups, 1):
         print(f"  {idx}. {group_dir.name} ({len(group_images)} 张)")
-    print()
+    print("  (文案来源：将自动读取各目录中的 captions.txt)\n")
 
     res = inquirer.select(
         message="目标平台预设:",
@@ -145,16 +152,8 @@ def menu_slideshow(images: list[Path]):
         default=(1080, 1920),
     ).execute()
 
-    duration = float(inquirer.text(message="每张图片展示时长 (秒):", default="3.0").execute())
-    caption_mode = inquirer.select(
-        message="文案来源:",
-        choices=[
-            Choice("filename", "🧾 使用图片文件名作为文案"),
-            Choice("captions_file", "📄 使用各目录 captions.txt (每行一句)"),
-            Choice("none", "🚫 不添加文案"),
-        ],
-        default="filename",
-    ).execute()
+    duration = float(inquirer.text(message="每张图片展示时长 (秒):", default="5.0").execute())
+
 
     if not confirm_action(f"确认批量生成 {len(groups)} 条热点 Slideshow?"):
         return
@@ -165,14 +164,9 @@ def menu_slideshow(images: list[Path]):
     success = 0
     failed = 0
     for group_dir, group_images in groups:
-        if caption_mode == "filename":
-            texts = build_texts_from_filenames(group_images)
-        elif caption_mode == "captions_file":
-            texts = load_texts_from_caption_file(group_dir / "captions.txt")
-            if len(texts) < len(group_images):
-                texts = texts + [""] * (len(group_images) - len(texts))
-        else:
-            texts = []
+        texts = load_texts_from_caption_file(group_dir / "captions.txt")
+        if len(texts) < len(group_images):
+            texts = texts + [""] * (len(group_images) - len(texts))
 
         output_path = batch_dir / f"{group_dir.name}.mp4"
         try:
