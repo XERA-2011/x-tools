@@ -9,21 +9,6 @@ from tools.common import generate_output_name, logger
 from tools.concat.ffmpeg_concat import TRANSITION_PRESETS
 
 
-def get_chinese_font(size: int):
-    font_paths = [
-        "/System/Library/Fonts/PingFang.ttc",
-        "/System/Library/Fonts/STHeiti Light.ttc",
-        "/Library/Fonts/Arial Unicode.ttf"
-    ]
-    for p in font_paths:
-        if Path(p).exists():
-            try:
-                return ImageFont.truetype(p, size)
-            except Exception:
-                pass
-    return ImageFont.load_default()
-
-
 def resize_and_pad(img: Image.Image, target_w: int, target_h: int) -> Image.Image:
     """Resize image with aspect ratio preserved, optionally adding black padding"""
     img_ratio = img.width / img.height
@@ -49,49 +34,9 @@ def resize_and_pad(img: Image.Image, target_w: int, target_h: int) -> Image.Imag
     return new_img, paste_x, paste_y, new_w, new_h
 
 
-def draw_text_with_stroke(draw, text, x, y, font, text_color="white", stroke_color="black", stroke_width=2, bold=False):
-    # draw stroke
-    for adj_x in range(-stroke_width, stroke_width + 1):
-        for adj_y in range(-stroke_width, stroke_width + 1):
-            if adj_x == 0 and adj_y == 0:
-                continue
-            draw.text((x + adj_x, y + adj_y), text, font=font, fill=stroke_color)
-    # draw text
-    if bold:
-        for adj_x in range(-1, 2):
-            for adj_y in range(-1, 2):
-                draw.text((x + adj_x, y + adj_y), text, font=font, fill=text_color)
-    else:
-        draw.text((x, y), text, font=font, fill=text_color)
-
-
-def preprocess_image(image_path: Path, output_path: Path, text: str, target_w: int, target_h: int):
+def preprocess_image(image_path: Path, output_path: Path, target_w: int, target_h: int):
     img = Image.open(image_path).convert("RGB")
     img, paste_x, paste_y, new_w, new_h = resize_and_pad(img, target_w, target_h)
-
-    if text and text.strip():
-        draw = ImageDraw.Draw(img)
-        font_size = max(target_h // 20, 24)
-        font = get_chinese_font(font_size)
-
-        bbox = draw.textbbox((0, 0), text, font=font)
-        text_w = bbox[2] - bbox[0]
-
-        x = (target_w - text_w) // 2
-        y = paste_y + int(new_h * 0.8)
-
-        draw_text_with_stroke(
-            draw,
-            text,
-            x,
-            y,
-            font,
-            text_color="yellow",
-            stroke_color="black",
-            stroke_width=max(2, font_size // 15),
-            bold=True,
-        )
-
     img.save(output_path, "JPEG", quality=95)
 
 
@@ -174,12 +119,15 @@ def generate_slideshow(
     temp_dir = Path(tempfile.mkdtemp(prefix="x-tools_slideshow_"))
     
     try:
+        from tools.slideshow.ass_builder import generate_ass_subtitles
+        ass_path = temp_dir / "subtitles.ass"
+        generate_ass_subtitles(texts, duration_per_image, resolution, ass_path)
+
         if transition == "none":
             concat_file_content = []
             for i, img_p in enumerate(image_paths):
-                txt = texts[i] if i < len(texts) else ""
                 out_img = temp_dir / f"{i:04d}.jpg"
-                preprocess_image(img_p, out_img, txt, target_w, target_h)
+                preprocess_image(img_p, out_img, target_w, target_h)
                 
                 concat_file_content.append(f"file '{out_img.resolve()}'\n")
                 concat_file_content.append(f"duration {duration_per_image}\n")
@@ -205,10 +153,13 @@ def generate_slideshow(
             if music_path:
                 afade = f"afade=t=out:st={max(0, total_duration-2):.2f}:d=2"
                 filter_complex.append(f"[1:a]volume={music_volume},{afade}[a_out]")
+                filter_complex.append(f"[0:v]subtitles='{ass_path.resolve().as_posix()}'[final_v]")
                 cmd.extend(["-filter_complex", ";".join(filter_complex)])
-                cmd.extend(["-map", "0:v", "-map", "[a_out]"])
+                cmd.extend(["-map", "[final_v]", "-map", "[a_out]"])
             else:
-                cmd.extend(["-map", "0:v"])
+                filter_complex.append(f"[0:v]subtitles='{ass_path.resolve().as_posix()}'[final_v]")
+                cmd.extend(["-filter_complex", ";".join(filter_complex)])
+                cmd.extend(["-map", "[final_v]"])
         else:
             # Transition logic using xfade
             xfade_type = TRANSITION_PRESETS.get(transition, {}).get("xfade")
@@ -216,9 +167,8 @@ def generate_slideshow(
 
             cmd = [FFMPEG_BIN, "-y"]
             for i, img_p in enumerate(image_paths):
-                txt = texts[i] if i < len(texts) else ""
                 out_img = temp_dir / f"{i:04d}.jpg"
-                preprocess_image(img_p, out_img, txt, target_w, target_h)
+                preprocess_image(img_p, out_img, target_w, target_h)
                 cmd.extend(["-loop", "1", "-t", str(duration_per_image), "-i", str(out_img)])
 
             music_input_idx = None
@@ -248,14 +198,16 @@ def generate_slideshow(
                 filter_complex.append("[v0]null[outv]")
                 total_duration = duration_per_image
 
+            filter_complex.append(f"[outv]subtitles='{ass_path.resolve().as_posix()}'[final_v]")
+
             if music_path:
                 afade = f"afade=t=out:st={max(0, total_duration-2):.2f}:d=2"
                 filter_complex.append(f"[{music_input_idx}:a]volume={music_volume},{afade}[a_out]")
                 cmd.extend(["-filter_complex", ";".join(filter_complex)])
-                cmd.extend(["-map", "[outv]", "-map", "[a_out]"])
+                cmd.extend(["-map", "[final_v]", "-map", "[a_out]"])
             else:
                 cmd.extend(["-filter_complex", ";".join(filter_complex)])
-                cmd.extend(["-map", "[outv]"])
+                cmd.extend(["-map", "[final_v]"])
 
         cmd.extend([
             "-c:v", "libx264",
