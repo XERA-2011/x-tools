@@ -1,5 +1,5 @@
-import math
 from pathlib import Path
+
 
 def format_ass_time(sec: float) -> str:
     """Format time in seconds to ASS time format: H:MM:SS.cs"""
@@ -43,6 +43,15 @@ def generate_ass_subtitles(
     margin_h = int(width * 0.1)
 
     # Note: PrimaryColour &H0000FFFF is Yellow (A, B, G, R)
+    format_line = (
+        "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, "
+        "BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, "
+        "BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding"
+    )
+    style_line = (
+        f"Style: Default,STHeiti Light,{font_size},&H0000FFFF,&H000000FF,&H00000000,"
+        f"&H00000000,-1,0,0,0,100,100,0,0,1,{stroke_width},0,2,{margin_h},{margin_h},{margin_v},1"
+    )
     ass_header = f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: {width}
@@ -50,8 +59,8 @@ PlayResY: {height}
 WrapStyle: 1
 
 [V4+ Styles]
-Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,STHeiti Light,{font_size},&H0000FFFF,&H000000FF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,{stroke_width},0,2,{margin_h},{margin_h},{margin_v},1
+{format_line}
+{style_line}
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text

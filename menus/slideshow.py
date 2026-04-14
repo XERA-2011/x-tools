@@ -6,7 +6,7 @@ from InquirerPy import inquirer
 from InquirerPy.base.control import Choice
 from InquirerPy.separator import Separator
 
-from config import INPUT_DIR, OUTPUT_DIR, IMAGE_EXTENSIONS
+from config import IMAGE_EXTENSIONS, INPUT_DIR, OUTPUT_DIR
 from menus._prompts import confirm_action, get_input_media
 
 
@@ -14,7 +14,6 @@ def menu_slideshow():
     """幻灯片 (Slideshow) 菜单"""
     from tools.concat.ffmpeg_concat import TRANSITION_PRESETS, get_available_music
     from tools.slideshow.generator import (
-        build_texts_from_filenames,
         discover_slideshow_groups,
         generate_slideshow,
         load_texts_from_caption_file,

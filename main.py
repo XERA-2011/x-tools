@@ -13,7 +13,7 @@ from InquirerPy import inquirer
 from InquirerPy.base.control import Choice
 from InquirerPy.separator import Separator
 
-from config import FFMPEG_BIN, IMAGE_EXTENSIONS, ensure_dirs
+from config import FFMPEG_BIN, ensure_dirs
 from menus._prompts import get_input_media, get_input_videos
 
 

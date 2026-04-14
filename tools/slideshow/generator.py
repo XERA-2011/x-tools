@@ -2,7 +2,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image
 
 from config import FFMPEG_BIN, IMAGE_EXTENSIONS, OUTPUT_SLIDESHOW
 from tools.common import generate_output_name, logger
