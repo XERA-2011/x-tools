@@ -51,6 +51,7 @@ def main():
                 Choice("bgm", "🎵 添加背景音乐 (BGM)"),
                 Choice("subtitle", "📝 字幕 (Subtitle)"),
                 Choice("mv", "🎵 歌词 MV 生成 (Lyric MV)"),
+                Choice("tts", "🔊 TTS 音频生成 (Text-to-Speech)"),
                 Choice("pdf_split", "📄 PDF 拆分 (PDF Split)"),
                 Separator(),
                 Choice("clean", "🧹 清理文件 (Clean)"),
@@ -80,6 +81,9 @@ def main():
         elif module == "slideshow":
             from menus.slideshow import menu_slideshow
             menu_slideshow()
+        elif module == "tts":
+            from menus.tts import menu_tts
+            menu_tts()
 
         # 需要媒体文件 (视频 + 图片) 的模块
         elif module in ("add_watermark", "convert", "filter", "crop", "subtitle"):
