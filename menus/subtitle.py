@@ -4,7 +4,7 @@ from pathlib import Path
 from InquirerPy import inquirer
 from InquirerPy.base.control import Choice
 
-from config import VIDEO_EXTENSIONS
+from config import VIDEO_EXTENSIONS, AUDIO_EXTENSIONS
 
 
 def menu_subtitle(media: list[Path]):
@@ -13,19 +13,19 @@ def menu_subtitle(media: list[Path]):
     from tools.subtitle.tts_dubbing import TTS_VOICES, dub_video_with_tts
     from tools.subtitle.whisper_transcribe import WHISPER_MODELS, transcribe_video
 
-    # 只处理视频
-    videos = [f for f in media if f.suffix.lower() in VIDEO_EXTENSIONS]
-    if not videos:
-        print("❌ 未找到视频文件")
+    # 支持视频和音频
+    media_files = [f for f in media if f.suffix.lower() in VIDEO_EXTENSIONS | AUDIO_EXTENSIONS]
+    if not media_files:
+        print("❌ 未找到支持的媒体文件 (视频/音频)")
         return
 
     mode = inquirer.select(
         message="字幕功能:",
         choices=[
-            Choice("auto", "🎙️ 自动生成字幕 (AI 语音识别)"),
-            Choice("burn", "🔥 烧录字幕 (导入 .srt)"),
-            Choice("oneclick", "⚡ 一键字幕 (识别 + 烧录)"),
-            Choice("tts", "🎤 视频配音 (基于字幕生成语音)"),
+            Choice("auto", "🎙️ 自动生成字幕 (AI 语音识别) [支持音频/视频]"),
+            Choice("burn", "🔥 烧录字幕 (导入 .srt) [仅视频]"),
+            Choice("oneclick", "⚡ 一键字幕 (识别 + 烧录) [仅视频]"),
+            Choice("tts", "🎤 视频配音 (基于字幕生成语音) [仅视频]"),
         ],
         default="oneclick",
     ).execute()
@@ -101,8 +101,8 @@ def menu_subtitle(media: list[Path]):
             default="xiaoxiao",
         ).execute()
 
-    # 执行
-    for v in videos:
+    for v in media_files:
+        is_audio = v.suffix.lower() in AUDIO_EXTENSIONS
         print(f"\n📹 处理: {v.name}")
 
         try:
@@ -111,9 +111,15 @@ def menu_subtitle(media: list[Path]):
                                  bilingual=bilingual, target_lang=target_lang)
 
             elif mode == "burn":
+                if is_audio:
+                    print(f"  ⚠️ 跳过 {v.name}: 烧录字幕不支持纯音频文件")
+                    continue
                 burn_subtitles(v, subtitle_path=srt_path, style=style)
 
             elif mode == "oneclick":
+                if is_audio:
+                    print(f"  ⚠️ 跳过 {v.name}: 一键字幕(包含烧录)不支持纯音频文件")
+                    continue
                 # 先识别
                 result = transcribe_video(v, model_name=model_name, language=lang,
                                           bilingual=bilingual, target_lang=target_lang)
@@ -122,6 +128,9 @@ def menu_subtitle(media: list[Path]):
                 burn_subtitles(v, subtitle_path=srt_file, style=style)
                 
             elif mode == "tts":
+                if is_audio:
+                    print(f"  ⚠️ 跳过 {v.name}: 配音不支持纯音频文件")
+                    continue
                 # 视频配音
                 dub_video_with_tts(v, srt_path=srt_path, voice_key=voice_key)
         except Exception as e:
