@@ -50,7 +50,6 @@ def main():
                 Choice("slideshow", "📸 幻灯片 (Slideshow)"),
                 Choice("bgm", "🎵 添加背景音乐 (BGM)"),
                 Choice("subtitle", "📝 字幕 (Subtitle)"),
-                Choice("mv", "🎵 歌词 MV 生成 (Lyric MV)"),
                 Choice("tts", "🔊 TTS 音频生成 (Text-to-Speech)"),
                 Choice("pdf_split", "📄 PDF 拆分 (PDF Split)"),
                 Separator(),
@@ -72,9 +71,6 @@ def main():
         elif module == "selftest":
             from menus.selftest import menu_selftest
             menu_selftest()
-        elif module == "mv":
-            from menus.mv import menu_mv
-            menu_mv()
         elif module == "pdf_split":
             from menus.pdf_split import menu_pdf_split
             menu_pdf_split()
