@@ -4,7 +4,7 @@ from pathlib import Path
 from InquirerPy import inquirer
 from InquirerPy.base.control import Choice
 
-from config import VIDEO_EXTENSIONS, AUDIO_EXTENSIONS
+from config import AUDIO_EXTENSIONS, VIDEO_EXTENSIONS
 
 
 def menu_subtitle(media: list[Path]):
