@@ -25,8 +25,15 @@ from tools.filter.ffmpeg_filter import FILTER_PRESETS  # noqa: E402
 # ============================================================
 # 配置
 # ============================================================
-DEFAULT_SAMPLE = PROJECT_ROOT / "docs" / "assets" / "filter_sample.png"
-OUTPUT_PATH = PROJECT_ROOT / "docs" / "assets" / "filter_preview.jpg"
+# 默认样图与输出路径 (若 docs 目录不存在，则 fallback 使用 images 目录与 output/filter)
+_docs_sample = PROJECT_ROOT / "docs" / "assets" / "filter_sample.png"
+if _docs_sample.is_file():
+    DEFAULT_SAMPLE = _docs_sample
+    OUTPUT_PATH = PROJECT_ROOT / "docs" / "assets" / "filter_preview.jpg"
+else:
+    DEFAULT_SAMPLE = PROJECT_ROOT / "images" / "test_image_1.png"
+    OUTPUT_PATH = PROJECT_ROOT / "output" / "filter" / "filter_preview.jpg"
+
 COLS = 2
 THUMB_WIDTH = 480           # 每个缩略图宽度 (px)
 LABEL_HEIGHT = 36           # 标签区域高度
