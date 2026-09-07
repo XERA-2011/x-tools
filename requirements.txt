@@ -11,6 +11,8 @@ InquirerPy>=0.3.4      # Interactive terminal menu
 Pillow>=10.0.0         # Image processing (watermark, CJK text)
 deep-translator>=1.11.0  # Multi-engine translation (bilingual subtitles)
 pypdf>=4.0.0           # PDF splitting / merging
+pypdfium2>=4.0.0       # High-fidelity PDF rendering to image
+edge-tts>=7.0.0        # High quality AI voice generation
 openai-whisper>=20231117 # Whisper speech recognition
 zhconv>=1.4.3          # Traditional/Simplified Chinese conversion
 # ============================================================

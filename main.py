@@ -48,6 +48,7 @@ def main():
                 Choice("crop", "✂️  裁切比例 (Crop)"),
                 Choice("concat", "🎬 拼接视频 (Concat)"),
                 Choice("slideshow", "📸 幻灯片 (Slideshow)"),
+                Choice("pdf2video", "📄  PDF 转视频 (PDF to Video)"),
                 Choice("bgm", "🎵 添加背景音乐 (BGM)"),
                 Choice("subtitle", "📝 字幕 (Subtitle)"),
                 Choice("tts", "🔊 TTS 音频生成 (Text-to-Speech)"),
@@ -64,7 +65,7 @@ def main():
             print("Bye!")
             sys.exit(0)
 
-        # 无需输入文件的模块
+        # 无需输入文件的模块 (由子模块内部引导选择文件)
         if module == "clean":
             from menus.clean import menu_clean
             menu_clean()
@@ -80,6 +81,9 @@ def main():
         elif module == "tts":
             from menus.tts import menu_tts
             menu_tts()
+        elif module == "pdf2video":
+            from menus.pdf2video import menu_pdf2video
+            menu_pdf2video()
 
         # 需要媒体文件 (视频 + 图片) 的模块
         elif module in ("add_watermark", "convert", "filter", "crop", "subtitle"):

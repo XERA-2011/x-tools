@@ -29,16 +29,18 @@ OUTPUT_COMPRESS = OUTPUT_DIR / "compress"
 OUTPUT_SLIDESHOW = OUTPUT_DIR / "slideshow"
 OUTPUT_PDF_SPLIT = OUTPUT_DIR / "pdf_split"
 OUTPUT_TTS = OUTPUT_DIR / "tts"
+OUTPUT_PDF2VIDEO = OUTPUT_DIR / "pdf2video"
 
 # 音乐目录
 MUSIC_DIR = PROJECT_ROOT / "music"
 
 # ============================================================
-# 支持的视频格式
+# 支持的文件格式
 # ============================================================
 VIDEO_EXTENSIONS = {".mp4", ".avi", ".mov", ".mkv", ".flv", ".wmv", ".webm", ".m4v"}
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tiff"}
 AUDIO_EXTENSIONS = {".mp3", ".wav", ".aac", ".m4a", ".flac", ".ogg", ".wma"}
+PDF_EXTENSIONS = {".pdf"}
 
 # ============================================================
 # FFmpeg 配置
@@ -120,7 +122,8 @@ def ensure_dirs():
               OUTPUT_ADD_WATERMARK, OUTPUT_UPSCALE, OUTPUT_INTERPOLATION,
               OUTPUT_CONVERT, OUTPUT_FILTER, OUTPUT_CROP, OUTPUT_CONCAT,
               OUTPUT_BGM, OUTPUT_SUBTITLE, OUTPUT_COMPRESS,
-              OUTPUT_SLIDESHOW, OUTPUT_PDF_SPLIT, OUTPUT_TTS, MUSIC_DIR]:
+              OUTPUT_SLIDESHOW, OUTPUT_PDF_SPLIT, OUTPUT_TTS,
+              OUTPUT_PDF2VIDEO, MUSIC_DIR]:
         d.mkdir(parents=True, exist_ok=True)
 
 
