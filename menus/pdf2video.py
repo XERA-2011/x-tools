@@ -146,18 +146,50 @@ def menu_pdf2video():
 
     # 6. 字幕烧录选项
     burn_subtitles = inquirer.confirm(
-        message="是否将解说文案以半透明质感底框烧录在视频画面底部 (推荐是)?",
+        message="是否在视频画面底部烧录解说字幕 (推荐是)?",
         default=True,
     ).execute()
 
+    subtitle_style = "white_box"
+    subtitle_layout = "split_phrases"
+    if burn_subtitles:
+        subtitle_style = inquirer.select(
+            message="选择字幕颜色类型:",
+            choices=[
+                Choice("white_box", "⬜ 白字半透明黑底(圆角框) (沉浸质感)"),
+                Choice("black_transparent", "🖤 黑字透明底 (简约白边微轮廓)"),
+            ],
+            default="white_box",
+        ).execute()
+
+        subtitle_layout = inquirer.select(
+            message="选择字幕长句排版方案:",
+            choices=[
+                Choice("split_phrases", "✨ 方案 1: 标点短句拆分流转 (推荐，8~18字动态切换，小巧大字)"),
+                Choice("double_line", "📑 方案 2: 智能双行折行卡片 (超长句自动对称折两行，紧凑贴合底框)"),
+                Choice("single_line_scale", "🔍 方案 3: 纯单行自适应字号 (长句绝对不换行，动态等比缩小字号)"),
+            ],
+            default="split_phrases",
+        ).execute()
+
     # 7. 确认生成
+    style_label = "白字半透明黑底(圆角框)" if subtitle_style == "white_box" else "黑字透明底"
+    layout_label_map = {
+        "split_phrases": "方案1: 标点短句拆分流转",
+        "double_line": "方案2: 智能双行折行卡片",
+        "single_line_scale": "方案3: 纯单行自适应字号",
+        "auto_scale": "方案3: 纯单行自适应字号",
+        "fixed_bar": "方案3: 纯单行自适应字号",
+    }
+    layout_label = layout_label_map.get(subtitle_layout, "方案1: 标点短句拆分流转")
+    burn_desc = f"是 ({style_label} | {layout_label})" if burn_subtitles else "否 (保持画面纯净，输出独立 SRT)"
     print("\n--- 任务配置清单 ---")
     print(f"📄 输入文件: {pdf_path.name}")
     print(f"🎙️  朗读音色: {voice}")
     print(f"⏸️  翻页留白: {page_padding} 秒")
     print(f"🖥️  输出规格: {resolution_choice}")
     print(f"🎵 背景音乐: {bgm_path.name if bgm_path else '无'}")
-    print(f"📝 画面烧录: {'是 (半透明质感底框, 居中贴底)' if burn_subtitles else '否 (保持画面纯净，输出独立 SRT)'}")
+    print(f"📝 画面烧录: {burn_desc}")
     print("--------------------\n")
 
     confirm = inquirer.confirm(message="确认开始生成视频吗?", default=True).execute()
@@ -174,6 +206,8 @@ def menu_pdf2video():
             bgm_volume=bgm_volume,
             resolution=resolution_choice,
             burn_subtitles=burn_subtitles,
+            subtitle_style=subtitle_style,
+            subtitle_layout=subtitle_layout,
         )
         print("\n🎉 处理完成!")
         print(f"   🎬 视频文件: {result['output']}")

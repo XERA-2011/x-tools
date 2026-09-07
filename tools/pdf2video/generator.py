@@ -111,48 +111,306 @@ def _wrap_text_ass(text: str, max_chars_per_line: int = 36, max_lines: int = 2) 
     return line1 + r"\N" + line2
 
 
-def build_single_slide_ass(text: str, duration: float, resolution: tuple[int, int], output_path: Path) -> Path:
+def _split_sentence_into_phrases(text: str, start: float, end: float) -> list[dict]:
     """
-    为单页生成底部精致小字幕 ASS 文件 (最多 2 行，贴底显示，避免遮挡页面)
+    按各类标点符号 (逗号、分号、句号、顿号等) 将长句拆分为节奏紧凑的小短句 (8~16 字)，
+    并按字数权重精准分配时间区间，彻底消除长句导致底框横贯屏幕或字体缩太小的问题。
+    """
+    import re
+
+    raw_tokens = re.split(r"([，。；、！？,;!?:：\s])", text)
+    clauses: list[str] = []
+    curr = ""
+    for part in raw_tokens:
+        if not part:
+            continue
+        if part in "，。；、！？,;!?:： \t\n":
+            curr += part
+            if len(curr) >= 6:
+                clauses.append(curr.strip())
+                curr = ""
+        else:
+            curr += part
+
+    if curr:
+        if clauses and len(curr) < 4:
+            clauses[-1] += curr.strip()
+        else:
+            clauses.append(curr.strip())
+
+    # 对没有标点但依然超过 20 字的超长短语进行二次语义/均分拆解
+    final_clauses: list[str] = []
+    for c in clauses:
+        if len(c) > 20:
+            mid = len(c) // 2
+            final_clauses.append(c[:mid].strip())
+            final_clauses.append(c[mid:].strip())
+        elif c:
+            final_clauses.append(c)
+
+    if not final_clauses:
+        return [{"start": start, "end": end, "text": text}]
+
+    total_chars = sum(max(1, len(c)) for c in final_clauses)
+    total_dur = max(0.2, end - start)
+    result: list[dict] = []
+    c_start = start
+
+    for idx, c in enumerate(final_clauses):
+        c_dur = total_dur * (len(c) / total_chars)
+        c_end = c_start + c_dur if idx + 1 < len(final_clauses) else end
+        s_s = round(c_start, 3)
+        s_e = round(c_end, 3)
+        if s_e <= s_s:
+            s_e = s_s + 0.1
+        result.append({
+            "start": s_s,
+            "end": s_e,
+            "text": c,
+        })
+        c_start = c_end
+
+    return result
+
+
+def _build_rounded_box_ass_path(box_x0: int, box_y0: int, box_w: int, box_h: int, r: int) -> str:
+    """生成 ASS 矢量绘图指令 (贝塞尔曲线精确拟合圆角矩形)"""
+    k = int(r * 0.5522847498)
+    return (
+        f"m {box_x0 + r} {box_y0} "
+        f"l {box_x0 + box_w - r} {box_y0} "
+        f"b {box_x0 + box_w - r + k} {box_y0} {box_x0 + box_w} {box_y0 + r - k} {box_x0 + box_w} {box_y0 + r} "
+        f"l {box_x0 + box_w} {box_y0 + box_h - r} "
+        f"b {box_x0 + box_w} {box_y0 + box_h - r + k} {box_x0 + box_w - r + k} {box_y0 + box_h} {box_x0 + box_w - r} {box_y0 + box_h} "
+        f"l {box_x0 + r} {box_y0 + box_h} "
+        f"b {box_x0 + r - k} {box_y0 + box_h} {box_x0} {box_y0 + box_h - r + k} {box_x0} {box_y0 + box_h - r} "
+        f"l {box_x0} {box_y0 + r} "
+        f"b {box_x0} {box_y0 + r - k} {box_x0 + r - k} {box_y0} {box_x0 + r} {box_y0}"
+    )
+
+
+def build_single_slide_ass(
+    text: str,
+    duration: float,
+    resolution: tuple[int, int],
+    output_path: Path,
+    sentences: list[dict] | None = None,
+    subtitle_style: str = "white_box",
+    subtitle_layout: str = "split_phrases",
+) -> Path:
+    """
+    为单页生成底部精致小字幕 ASS 文件 (贴底显示，避免遮挡页面)
+
+    参数:
+        text: 兜底全文
+        duration: 单页总时长
+        resolution: (宽, 高) 分辨率
+        output_path: 输出 .ass 文件路径
+        sentences: 句级时间戳列表 [{"start": 0.0, "end": 2.5, "text": "..."}]
+        subtitle_style: 字幕颜色样式:
+          - "white_box": 白字半透明黑底 (高质感矢量贝塞尔圆角框)
+          - "black_transparent": 黑字透明底 (带白色微描边轮廓)
+        subtitle_layout: 长句排版方案:
+          - "split_phrases": 方案 1 (标点短句拆分流转，小巧精炼，大字清晰，推荐)
+          - "double_line": 方案 2 (智能双行折行卡片，大字清晰，紧凑贴合底框)
+          - "single_line_scale" / "auto_scale" / "fixed_bar": 方案 3 (纯单行自适应字号，长句绝对不换行，动态等比微缩字号)
     """
     width, height = resolution
-    font_size = max(18, int(height // 40))
-    margin_v = int(height * 0.03)
-    margin_h = int(width * 0.08)
+    # 保持饱满醒目的大字号 (1080p 下为 45px，清晰易读)
+    font_size = max(36, int(height // 24))
+    margin_v = max(18, int(height * 0.02))  # 紧贴底部，为上方图表留出充足的安全白边
+    margin_h = max(24, int(width * 0.02))
+    is_white_box = subtitle_style in ("white_box", "white_bg_box")
 
     format_line = (
         "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, "
         "BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, "
         "BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding"
     )
-    # 使用半透明微黑底框 (BorderStyle=3, Outline=6 作为内边距, BackColour=&H70000000), 贴底居中, 绝不遮挡主体
-    style_line = (
-        f"Style: Default,PingFang SC,{font_size},&H00FFFFFF,&H000000FF,&H00000000,"
-        f"&H70000000,-1,0,0,0,100,100,0,0,3,6,0,2,{margin_h},{margin_h},{margin_v},1"
-    )
 
+    if is_white_box:
+        style_lines = [
+            "Style: BgBox,Arial,10,&H00000000,&H00000000,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1",
+            f"Style: Default,PingFang SC,{font_size},&H00FFFFFF,&H000000FF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,0,0,2,0,0,0,1",
+        ]
+    else:
+        style_lines = [
+            f"Style: Default,PingFang SC,{font_size},&H00000000,&H000000FF,&H00FFFFFF,"
+            f"&H00000000,-1,0,0,0,100,100,0,0,1,1.2,0,2,{margin_h},{margin_h},{margin_v},1"
+        ]
+
+    # WrapStyle: 2 严格禁止 libass 自动折行
     ass_header = f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: {width}
 PlayResY: {height}
-WrapStyle: 1
+WrapStyle: 2
 
 [V4+ Styles]
 {format_line}
-{style_line}
+{"\n".join(style_lines)}
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
     available_width = width - (margin_h * 2)
-    max_chars = max(12, int(available_width / font_size))
-    formatted_text = _wrap_text_ass(text, max_chars_per_line=max_chars, max_lines=2)
+    max_chars = max(20, int(available_width / (font_size * 1.05)))
+    pad_x = max(26, int(font_size * 0.6))
+    pad_y = max(14, int(font_size * 0.32))
 
-    start_str = _format_ass_time(0.0)
-    end_str = _format_ass_time(duration)
-    event_line = f"Dialogue: 0,{start_str},{end_str},Default,,0,0,0,,{formatted_text}"
+    # 1. 规范化输入句子列表
+    raw_sentences: list[dict] = []
+    if sentences:
+        for s in sentences:
+            st = (s.get("text") or "").strip()
+            if not st:
+                continue
+            raw_sentences.append({
+                "start": max(0.0, float(s.get("start", 0.0))),
+                "end": max(0.0, float(s.get("end", duration))),
+                "text": st,
+            })
+    elif text and text.strip():
+        raw_sentences.append({
+            "start": 0.0,
+            "end": duration,
+            "text": text.strip(),
+        })
 
-    ass_content = ass_header + event_line + "\n"
+    # 2. 方案 1 (split_phrases): 标点短句细化拆分
+    processed_sentences: list[dict] = []
+    if subtitle_layout == "split_phrases":
+        for s in raw_sentences:
+            phrases = _split_sentence_into_phrases(s["text"], s["start"], s["end"])
+            processed_sentences.extend(phrases)
+    else:
+        processed_sentences = raw_sentences
+
+    # 消除相邻片段微秒级时间重合
+    for idx in range(len(processed_sentences)):
+        s_cur = processed_sentences[idx]
+        if idx + 1 < len(processed_sentences):
+            next_s = processed_sentences[idx + 1]["start"]
+            if s_cur["end"] >= next_s:
+                s_cur["end"] = max(s_cur["start"] + 0.05, next_s)
+            elif (next_s - s_cur["end"]) < 0.35:
+                s_cur["end"] = next_s
+        else:
+            s_cur["end"] = min(duration, max(s_cur["end"], duration - 0.2))
+
+        if s_cur["end"] <= s_cur["start"]:
+            s_cur["end"] = s_cur["start"] + 0.1
+
+    # 3. 按不同排版方案生成 ASS 事件 (确保所有方案均保持大字清晰饱满)
+    event_lines = []
+
+    for s in processed_sentences:
+        s_start = s["start"]
+        s_end = s["end"]
+        s_text = s["text"]
+        start_str = _format_ass_time(s_start)
+        end_str = _format_ass_time(s_end)
+
+        if subtitle_layout == "double_line":
+            # 方案 2: 智能双行折行卡片 (始终保持 45px 大字，超长自动折 2 行)
+            formatted = _wrap_text_ass(s_text, max_chars_per_line=18, max_lines=2)
+            if r"\N" in formatted:
+                lines = formatted.split(r"\N")
+                char_w = max(
+                    sum(font_size * 1.0 if ord(c) > 255 else font_size * 0.55 for c in line)
+                    for line in lines
+                )
+                line_spacing = int(font_size * 0.18)
+                box_h = int(font_size * 2 + line_spacing + pad_y * 2)
+                box_w = int(min(available_width, char_w + pad_x * 2))
+            else:
+                clean_t = formatted.replace(r"\N", " ")
+                char_w = sum(font_size * 1.0 if ord(c) > 255 else font_size * 0.55 for c in clean_t)
+                box_w = int(min(available_width, char_w + pad_x * 2))
+                box_h = int(font_size + pad_y * 2)
+
+            r = int(min(18, box_h / 2, box_w / 2))
+            box_x0 = int((width - box_w) / 2)
+            box_y0 = int(height - box_h - margin_v)
+            text_x = int(width / 2)
+            text_y = int(box_y0 + box_h - pad_y)
+
+            if is_white_box:
+                box_path = _build_rounded_box_ass_path(box_x0, box_y0, box_w, box_h, r)
+                event_lines.append(
+                    f"Dialogue: 0,{start_str},{end_str},BgBox,,0,0,0,,{{\\an7\\pos(0,0)\\p1\\c&H000000&\\1a&H70&\\bord0\\shad0}}{box_path}{{\\p0}}"
+                )
+                event_lines.append(
+                    f"Dialogue: 1,{start_str},{end_str},Default,,0,0,0,,{{\\an2\\pos({text_x},{text_y})}}{formatted}"
+                )
+            else:
+                event_lines.append(
+                    f"Dialogue: 0,{start_str},{end_str},Default,,0,0,0,,{{\\an2\\pos({text_x},{text_y})}}{formatted}"
+                )
+
+        elif subtitle_layout in ("single_line_scale", "auto_scale", "fixed_bar", "single_line"):
+            # 方案 3: 纯单行自适应字号 (长句绝对不换行，根据安全宽度等比缩小字号)
+            max_allowed_w = int(width * 0.85)
+            clean_t = " ".join(s_text.split())
+            raw_char_w = sum(font_size * 1.0 if ord(c) > 255 else font_size * 0.55 for c in clean_t)
+
+            if raw_char_w + pad_x * 2 <= max_allowed_w:
+                cur_fs = font_size
+                box_w = int(raw_char_w + pad_x * 2)
+                box_h = int(font_size + pad_y * 2)
+                text_tag = ""
+            else:
+                cur_fs = max(16, int((max_allowed_w - pad_x * 2) / (raw_char_w / font_size)))
+                cur_char_w = sum(cur_fs * 1.0 if ord(c) > 255 else cur_fs * 0.55 for c in clean_t)
+                box_w = int(cur_char_w + pad_x * 2)
+                box_h = int(cur_fs + pad_y * 2)
+                text_tag = f"{{\\fs{cur_fs}}}"
+
+            r = int(min(18, box_h / 2, box_w / 2))
+            box_x0 = int((width - box_w) / 2)
+            box_y0 = int(height - box_h - margin_v)
+            text_x = int(width / 2)
+            text_y = int(box_y0 + box_h - pad_y)
+
+            if is_white_box:
+                box_path = _build_rounded_box_ass_path(box_x0, box_y0, box_w, box_h, r)
+                event_lines.append(
+                    f"Dialogue: 0,{start_str},{end_str},BgBox,,0,0,0,,{{\\an7\\pos(0,0)\\p1\\c&H000000&\\1a&H70&\\bord0\\shad0}}{box_path}{{\\p0}}"
+                )
+                event_lines.append(
+                    f"Dialogue: 1,{start_str},{end_str},Default,,0,0,0,,{{\\an2\\pos({text_x},{text_y})}}{text_tag}{clean_t}"
+                )
+            else:
+                event_lines.append(
+                    f"Dialogue: 0,{start_str},{end_str},Default,,0,0,0,,{{\\an2\\pos({text_x},{text_y})}}{text_tag}{clean_t}"
+                )
+
+        else:
+            # 方案 1: split_phrases (标点短句拆分流转，小巧精炼，始终 45px 大字)
+            clean_t = " ".join(s_text.split())
+            char_w = sum(font_size * 1.0 if ord(c) > 255 else font_size * 0.55 for c in clean_t)
+            box_w = int(min(available_width, char_w + pad_x * 2))
+            box_h = int(font_size + pad_y * 2)
+            r = int(min(18, box_h / 2, box_w / 2))
+            box_x0 = int((width - box_w) / 2)
+            box_y0 = int(height - box_h - margin_v)
+            text_x = int(width / 2)
+            text_y = int(box_y0 + box_h - pad_y)
+
+            if is_white_box:
+                box_path = _build_rounded_box_ass_path(box_x0, box_y0, box_w, box_h, r)
+                event_lines.append(
+                    f"Dialogue: 0,{start_str},{end_str},BgBox,,0,0,0,,{{\\an7\\pos(0,0)\\p1\\c&H000000&\\1a&H70&\\bord0\\shad0}}{box_path}{{\\p0}}"
+                )
+                event_lines.append(
+                    f"Dialogue: 1,{start_str},{end_str},Default,,0,0,0,,{{\\an2\\pos({text_x},{text_y})}}{clean_t}"
+                )
+            else:
+                event_lines.append(
+                    f"Dialogue: 0,{start_str},{end_str},Default,,0,0,0,,{{\\an2\\pos({text_x},{text_y})}}{clean_t}"
+                )
+
+    ass_content = ass_header + "\n".join(event_lines) + "\n"
     output_path.write_text(ass_content, encoding="utf-8")
     return output_path
 
@@ -164,26 +422,64 @@ async def _generate_slide_tts(
     sem: asyncio.Semaphore | None = None,
     max_retries: int = 3,
     on_complete: Callable | None = None,
-):
-    """异步调用 edge-tts 生成单页音频 (支持信号量并发限制与重试机制)"""
+) -> list[dict]:
+    """异步调用 edge-tts 生成单页音频并捕获句级时间戳 (SentenceBoundary)"""
     import edge_tts
+
     for attempt in range(max_retries):
         try:
+            sentences: list[dict] = []
             if sem:
                 async with sem:
                     communicate = edge_tts.Communicate(text, voice_id)
-                    await communicate.save(str(output_path))
+                    with open(output_path, "wb") as f:
+                        async for chunk in communicate.stream():
+                            if chunk["type"] == "audio":
+                                f.write(chunk["data"])
+                            elif chunk["type"] == "SentenceBoundary":
+                                start = chunk["offset"] / 10_000_000
+                                dur = chunk["duration"] / 10_000_000
+                                s_text = (chunk.get("text") or "").strip()
+                                if s_text:
+                                    s_start = round(start, 3)
+                                    s_end = round(start + dur, 3)
+                                    if sentences and sentences[-1]["end"] > s_start:
+                                        sentences[-1]["end"] = s_start
+                                    sentences.append({
+                                        "start": s_start,
+                                        "end": s_end,
+                                        "text": s_text,
+                                    })
             else:
                 communicate = edge_tts.Communicate(text, voice_id)
-                await communicate.save(str(output_path))
+                with open(output_path, "wb") as f:
+                    async for chunk in communicate.stream():
+                        if chunk["type"] == "audio":
+                            f.write(chunk["data"])
+                        elif chunk["type"] == "SentenceBoundary":
+                            start = chunk["offset"] / 10_000_000
+                            dur = chunk["duration"] / 10_000_000
+                            s_text = (chunk.get("text") or "").strip()
+                            if s_text:
+                                s_start = round(start, 3)
+                                s_end = round(start + dur, 3)
+                                if sentences and sentences[-1]["end"] > s_start:
+                                    sentences[-1]["end"] = s_start
+                                sentences.append({
+                                    "start": s_start,
+                                    "end": s_end,
+                                    "text": s_text,
+                                })
+
             if on_complete:
                 on_complete()
-            return
+            return sentences
         except Exception as e:
             if attempt == max_retries - 1:
                 logger.error(f"TTS 生成失败 (尝试 {max_retries} 次): {e}")
                 raise e
             await asyncio.sleep(0.4 * (attempt + 1))
+    return []
 
 
 def generate_pdf_video(
@@ -193,6 +489,8 @@ def generate_pdf_video(
     padding_after: float | None = None,
     page_padding: float | None = None,
     burn_subtitles: bool = True,
+    subtitle_style: str = "white_box",
+    subtitle_layout: str = "split_phrases",
     resolution: tuple[int, int] | str = (1920, 1080),
     music_path: Path | str | None = None,
     bgm_path: Path | str | None = None,
@@ -211,7 +509,9 @@ def generate_pdf_video(
         voice: voice_key 别名
         padding_after: 朗读完毕后留在当前页的静音留白秒数 (默认 0.8s)
         page_padding: padding_after 别名
-        burn_subtitles: 是否将朗读字幕烧录在视频画面上 (默认 True, 使用半透明贴底质感字幕框)
+        burn_subtitles: 是否将朗读字幕烧录在视频画面上 (默认 True)
+        subtitle_style: 字幕样式 ("white_box" 白字半透明黑底圆角框 或 "black_transparent" 黑字透明底)
+        subtitle_layout: 长句排版方案 ("split_phrases" 标点短句拆分流转 / "double_line" 智能双行 / "single_line_scale" 纯单行不换行)
         resolution: 最终视频分辨率 (宽, 高) 或 "1080p" / "2k" / "720p", 默认 (1920, 1080)
         music_path: 背景音乐文件路径
         bgm_path: music_path 别名
@@ -360,7 +660,6 @@ def generate_pdf_video(
                     description=f"[yellow][2/4] 🎙️ 生成语音配音 ({voice_label})[/yellow]",
                 )
             logger.debug(f"正在生成 AI 语音配音 (音色: {voice_label})...")
-            tts_tasks = []
             slide_audios: list[dict] = []
 
             for i in range(total_slides):
@@ -373,31 +672,31 @@ def generate_pdf_video(
                     "text": text,
                     "audio_path": audio_file,
                     "duration": 0.0,
+                    "sentences": [],
                 })
 
-                if text:
-                    tts_tasks.append((text, audio_file))
-
-            empty_count = total_slides - len(tts_tasks)
+            items_with_text = [item for item in slide_audios if item["text"]]
+            empty_count = total_slides - len(items_with_text)
             if empty_count > 0 and progress and task_id is not None:
                 progress.advance(task_id, advance=empty_count)
 
-            async def _run_all(tasks_data):
+            async def _worker(item, sem):
+                sents = await _generate_slide_tts(
+                    item["text"],
+                    voice_id,
+                    item["audio_path"],
+                    sem=sem,
+                    on_complete=lambda: progress.advance(task_id) if progress and task_id is not None else None,
+                )
+                item["sentences"] = sents
+
+            async def _run_all(items):
                 sem = asyncio.Semaphore(4)
-                coros = [
-                    _generate_slide_tts(
-                        t,
-                        voice_id,
-                        p,
-                        sem=sem,
-                        on_complete=lambda: progress.advance(task_id) if progress and task_id is not None else None,
-                    )
-                    for t, p in tasks_data
-                ]
+                coros = [_worker(item, sem) for item in items]
                 await asyncio.gather(*coros)
 
-            if tts_tasks:
-                asyncio.run(_run_all(tts_tasks))
+            if items_with_text:
+                asyncio.run(_run_all(items_with_text))
 
             if progress and task_id is not None:
                 progress.update(task_id, completed=total_slides)
@@ -423,6 +722,7 @@ def generate_pdf_video(
             for i, item in enumerate(slide_audios):
                 audio_dur = item["duration"]
                 text = item["text"]
+                sentences = item.get("sentences") or []
 
                 if audio_dur > 0:
                     slide_dur = audio_dur + padding_after
@@ -433,13 +733,56 @@ def generate_pdf_video(
 
                 slide_durations.append(slide_dur)
 
-                # 生成 SRT 条目 (若该页有文字)
-                if text:
-                    srt_start = _format_srt_time(current_time)
-                    srt_end = _format_srt_time(text_end_time)
-                    clean_text = " ".join(text.split())
-                    srt_idx = len(srt_lines) + 1
-                    srt_lines.append(f"{srt_idx}\n{srt_start} --> {srt_end}\n{clean_text}\n")
+                # 生成 SRT 条目 (支持句级时间戳高精对齐，严格防止时间戳重合)
+                if sentences:
+                    valid_s = []
+                    for s in sentences:
+                        st = (s.get("text") or "").strip()
+                        if st:
+                            valid_s.append({
+                                "start": max(0.0, float(s.get("start", 0.0))),
+                                "end": max(0.0, float(s.get("end", audio_dur))),
+                                "text": st,
+                            })
+
+                    if subtitle_layout == "split_phrases":
+                        expanded_s = []
+                        for s in valid_s:
+                            phrases = _split_sentence_into_phrases(s["text"], s["start"], s["end"])
+                            expanded_s.extend(phrases)
+                        valid_s = expanded_s
+
+                    for idx, s in enumerate(valid_s):
+                        s_start = s["start"]
+                        s_end = s["end"]
+                        if idx + 1 < len(valid_s):
+                            next_start = valid_s[idx + 1]["start"]
+                            if s_end > next_start:
+                                s_end = next_start
+                        if s_end <= s_start:
+                            s_end = s_start + 0.1
+                        srt_start = _format_srt_time(current_time + s_start)
+                        srt_end = _format_srt_time(current_time + min(slide_dur, s_end))
+                        clean_text = " ".join(s["text"].split())
+                        srt_idx = len(srt_lines) + 1
+                        srt_lines.append(f"{srt_idx}\n{srt_start} --> {srt_end}\n{clean_text}\n")
+                elif text:
+                    if subtitle_layout == "split_phrases":
+                        phrases = _split_sentence_into_phrases(text, 0.0, audio_dur if audio_dur > 0 else slide_dur)
+                        for s in phrases:
+                            s_start = s["start"]
+                            s_end = s["end"]
+                            srt_start = _format_srt_time(current_time + s_start)
+                            srt_end = _format_srt_time(current_time + min(slide_dur, s_end))
+                            clean_text = " ".join(s["text"].split())
+                            srt_idx = len(srt_lines) + 1
+                            srt_lines.append(f"{srt_idx}\n{srt_start} --> {srt_end}\n{clean_text}\n")
+                    else:
+                        srt_start = _format_srt_time(current_time)
+                        srt_end = _format_srt_time(text_end_time)
+                        clean_text = " ".join(text.split())
+                        srt_idx = len(srt_lines) + 1
+                        srt_lines.append(f"{srt_idx}\n{srt_start} --> {srt_end}\n{clean_text}\n")
 
                 current_time += slide_dur
 
@@ -475,11 +818,19 @@ def generate_pdf_video(
                 fitted_img, _, _, _, _ = resize_and_pad(img, target_w, target_h)
                 fitted_img.save(fitted_img_path, "JPEG", quality=95)
 
-                # 2. 单页 ASS 字幕 (如开启)
+                # 2. 单页 ASS 字幕 (如开启，支持句级动态平滑流转与自定义样式)
                 ass_path = None
                 if burn_subtitles and text:
                     ass_path = temp_dir / f"sub_{page_num:04d}.ass"
-                    build_single_slide_ass(text, slide_dur, resolution, ass_path)
+                    build_single_slide_ass(
+                        text,
+                        slide_dur,
+                        resolution,
+                        ass_path,
+                        sentences=slide_audios[i].get("sentences"),
+                        subtitle_style=subtitle_style,
+                        subtitle_layout=subtitle_layout,
+                    )
 
                 # 3. 构造单页 FFmpeg 命令
                 seg_out = segments_dir / f"seg_{page_num:04d}.mp4"

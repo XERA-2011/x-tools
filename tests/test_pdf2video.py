@@ -16,6 +16,7 @@ from tools.pdf2video.extractor import (
 from tools.pdf2video.generator import (
     _format_ass_time,
     _format_srt_time,
+    _split_sentence_into_phrases,
     _wrap_text_ass,
     build_single_slide_ass,
 )
@@ -103,12 +104,138 @@ class TestFormatting:
             duration=5.0,
             resolution=(1920, 1080),
             output_path=ass_path,
+            subtitle_style="black_transparent",
         )
         assert ass_path.is_file()
         content = ass_path.read_text(encoding="utf-8")
         assert "[Script Info]" in content
         assert "Dialogue: 0," in content
         assert "单页精致字幕测试" in content
+        # 黑字透明底
+        assert "&H00000000" in content
+        assert "&H00FFFFFF" in content
+
+    def test_build_single_slide_ass_white_box(self, tmp_path: Path):
+        ass_path = tmp_path / "slide_white_box.ass"
+        build_single_slide_ass(
+            text="白字半透明底框测试",
+            duration=5.0,
+            resolution=(1920, 1080),
+            output_path=ass_path,
+            subtitle_style="white_box",
+        )
+        assert ass_path.is_file()
+        content = ass_path.read_text(encoding="utf-8")
+        assert "[Script Info]" in content
+        assert "Style: BgBox" in content
+        assert "Dialogue: 0," in content
+        assert "Dialogue: 1," in content
+        assert "白字半透明底框测试" in content
+        # 白字半透明黑底矢量圆角框 (Layer 0 画布 \p1 包含贝塞尔曲线 b，Layer 1 白字 &H00FFFFFF)
+        assert r"\p1" in content
+        assert r"\1a&H70&" in content
+        assert "&H00FFFFFF" in content
+
+    def test_build_single_slide_ass_with_sentences(self, tmp_path: Path):
+        ass_path = tmp_path / "slide_multi.ass"
+        sentences = [
+            {"start": 0.0, "end": 2.5, "text": "第一句话讲解"},
+            {"start": 2.5, "end": 6.0, "text": "第二句话内容更加详细"},
+        ]
+        build_single_slide_ass(
+            text="整段文本回退",
+            duration=6.5,
+            resolution=(1920, 1080),
+            output_path=ass_path,
+            sentences=sentences,
+            subtitle_style="black_transparent",
+        )
+        assert ass_path.is_file()
+        content = ass_path.read_text(encoding="utf-8")
+        assert "第一句话讲解" in content
+        assert "第二句话内容更加详细" in content
+        dialogues = [line for line in content.splitlines() if line.startswith("Dialogue:")]
+        assert len(dialogues) == 2
+        assert "0:00:00.00" in dialogues[0]
+        assert "0:00:02.50" in dialogues[1]
+
+    def test_build_single_slide_ass_overlap_prevention(self, tmp_path: Path):
+        ass_path = tmp_path / "overlap_test.ass"
+        # Simulate Edge-TTS slight timestamp overlap (e.g. 0.05s)
+        sentences = [
+            {"start": 0.1, "end": 5.05, "text": "第一句结束稍晚"},
+            {"start": 5.0, "end": 10.0, "text": "第二句提前开始"},
+        ]
+        build_single_slide_ass(
+            text="回退文本",
+            duration=10.0,
+            resolution=(1920, 1080),
+            output_path=ass_path,
+            sentences=sentences,
+            subtitle_style="black_transparent",
+        )
+        content = ass_path.read_text(encoding="utf-8")
+        dialogues = [line for line in content.splitlines() if line.startswith("Dialogue:")]
+        assert len(dialogues) == 2
+        assert "0:00:00.10,0:00:05.00" in dialogues[0]
+        assert "0:00:05.00,0:00:10.00" in dialogues[1]
+    def test_split_sentence_into_phrases(self):
+        text = "第三步，批量导入商品明细，核对货物数量与金额无误后点击确认，单据状态变为待提交，生成电子仓单"
+        phrases = _split_sentence_into_phrases(text, 0.0, 10.0)
+        assert len(phrases) >= 3
+        assert phrases[0]["start"] == 0.0
+        assert phrases[-1]["end"] == 10.0
+        for p in phrases:
+            assert p["end"] > p["start"]
+            assert len(p["text"]) > 0
+
+    def test_build_single_slide_ass_double_line(self, tmp_path: Path):
+        ass_path = tmp_path / "double_line.ass"
+        text = "这是一句超长的文案测试，包含足够多的汉字用于触发双行折行排版测试效果，确保在卡片内居中"
+        build_single_slide_ass(
+            text=text,
+            duration=6.0,
+            resolution=(1920, 1080),
+            output_path=ass_path,
+            subtitle_style="white_box",
+            subtitle_layout="double_line",
+        )
+        content = ass_path.read_text(encoding="utf-8")
+        assert "\\N" in content
+        assert "Style: BgBox" in content
+
+    def test_build_single_slide_ass_single_line_scale(self, tmp_path: Path):
+        ass_path = tmp_path / "single_line_scale.ass"
+        # 极长句子（40+字）：坚决不折行（无 \\N），通过 \\fs 等比微缩字号
+        text_long = "超长单行句子测试用于检测纯单行自适应字号排版是否绝对不换行并动态等比微缩字号"
+        build_single_slide_ass(
+            text=text_long,
+            duration=6.0,
+            resolution=(1920, 1080),
+            output_path=ass_path,
+            subtitle_style="white_box",
+            subtitle_layout="single_line_scale",
+        )
+        content_long = ass_path.read_text(encoding="utf-8")
+        assert "\\N" not in content_long
+        assert "\\fs" in content_long
+        assert "Style: BgBox" in content_long
+
+        # 兼容旧参数名 auto_scale 和 fixed_bar
+        ass_path_alias = tmp_path / "alias.ass"
+        build_single_slide_ass(
+            text=text_long,
+            duration=6.0,
+            resolution=(1920, 1080),
+            output_path=ass_path_alias,
+            subtitle_style="white_box",
+            subtitle_layout="auto_scale",
+        )
+        content_alias = ass_path_alias.read_text(encoding="utf-8")
+        assert "\\N" not in content_alias
+        assert "\\fs" in content_alias
+
+
 
 
 class TestRenderer:
@@ -171,4 +298,46 @@ class TestGeneratePdfVideo:
             assert res["output"] == str(out_mp4)
             assert res["srt"] is not None
             assert Path(res["srt"]).is_file()
+
+    def test_generate_pdf_video_pipeline_white_box(self, sample_pdf: Path, tmp_path: Path):
+        from unittest.mock import MagicMock, patch
+
+        from tools.pdf2video.generator import generate_pdf_video
+
+        out_mp4 = tmp_path / "output_white_box.mp4"
+
+        with (
+            patch("tools.pdf2video.generator._generate_slide_tts") as mock_tts,
+            patch("tools.pdf2video.generator.get_video_info") as mock_info,
+            patch("tools.pdf2video.generator.subprocess.run") as mock_subproc,
+        ):
+            async def _fake_tts(text, voice_id, path, sem=None, on_complete=None):
+                Path(path).write_bytes(b"fake_mp3_data")
+                if on_complete:
+                    on_complete()
+
+            mock_tts.side_effect = _fake_tts
+            mock_info.return_value = {"duration": 2.5}
+
+            def _fake_subproc(cmd, **kwargs):
+                out = cmd[-1]
+                Path(out).write_bytes(b"dummy_video")
+                return MagicMock(returncode=0)
+
+            mock_subproc.side_effect = _fake_subproc
+
+            res = generate_pdf_video(
+                pdf_path=sample_pdf,
+                output_path=out_mp4,
+                custom_script=[
+                    {"page": 1, "text": "第一页介绍"},
+                    {"page": 2, "text": "第二页介绍"},
+                ],
+                burn_subtitles=True,
+                subtitle_style="white_box",
+                show_progress=False,
+            )
+
+            assert out_mp4.is_file()
+            assert res["slides_count"] == 2
 
