@@ -181,7 +181,8 @@ def _build_rounded_box_ass_path(box_x0: int, box_y0: int, box_w: int, box_h: int
         f"l {box_x0 + box_w - r} {box_y0} "
         f"b {box_x0 + box_w - r + k} {box_y0} {box_x0 + box_w} {box_y0 + r - k} {box_x0 + box_w} {box_y0 + r} "
         f"l {box_x0 + box_w} {box_y0 + box_h - r} "
-        f"b {box_x0 + box_w} {box_y0 + box_h - r + k} {box_x0 + box_w - r + k} {box_y0 + box_h} {box_x0 + box_w - r} {box_y0 + box_h} "
+        f"b {box_x0 + box_w} {box_y0 + box_h - r + k} "
+        f"{box_x0 + box_w - r + k} {box_y0 + box_h} {box_x0 + box_w - r} {box_y0 + box_h} "
         f"l {box_x0 + r} {box_y0 + box_h} "
         f"b {box_x0 + r - k} {box_y0 + box_h} {box_x0} {box_y0 + box_h - r + k} {box_x0} {box_y0 + box_h - r} "
         f"l {box_x0} {box_y0 + r} "
@@ -213,7 +214,7 @@ def build_single_slide_ass(
         subtitle_layout: 长句排版方案:
           - "split_phrases": 方案 1 (标点短句拆分流转，小巧精炼，大字清晰，推荐)
           - "double_line": 方案 2 (智能双行折行卡片，大字清晰，紧凑贴合底框)
-          - "single_line_scale" / "auto_scale" / "fixed_bar": 方案 3 (纯单行自适应字号，长句绝对不换行，动态等比微缩字号)
+          - "single_line_scale": 方案 3 (纯单行自适应字号，长句绝对不换行，动态等比微缩字号)
     """
     width, height = resolution
     # 保持饱满醒目的大字号 (1080p 下为 45px，清晰易读)
@@ -231,7 +232,10 @@ def build_single_slide_ass(
     if is_white_box:
         style_lines = [
             "Style: BgBox,Arial,10,&H00000000,&H00000000,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1",
-            f"Style: Default,PingFang SC,{font_size},&H00FFFFFF,&H000000FF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,0,0,2,0,0,0,1",
+            (
+                f"Style: Default,PingFang SC,{font_size},&H00FFFFFF,&H000000FF,&H00000000,&H00000000,"
+                "-1,0,0,0,100,100,0,0,1,0,0,2,0,0,0,1"
+            ),
         ]
     else:
         style_lines = [
@@ -240,6 +244,7 @@ def build_single_slide_ass(
         ]
 
     # WrapStyle: 2 严格禁止 libass 自动折行
+    styles_block = "\n".join(style_lines)
     ass_header = f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: {width}
@@ -248,13 +253,12 @@ WrapStyle: 2
 
 [V4+ Styles]
 {format_line}
-{"\n".join(style_lines)}
+{styles_block}
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
     available_width = width - (margin_h * 2)
-    max_chars = max(20, int(available_width / (font_size * 1.05)))
     pad_x = max(26, int(font_size * 0.6))
     pad_y = max(14, int(font_size * 0.32))
 
@@ -337,9 +341,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
             if is_white_box:
                 box_path = _build_rounded_box_ass_path(box_x0, box_y0, box_w, box_h, r)
-                event_lines.append(
-                    f"Dialogue: 0,{start_str},{end_str},BgBox,,0,0,0,,{{\\an7\\pos(0,0)\\p1\\c&H000000&\\1a&H70&\\bord0\\shad0}}{box_path}{{\\p0}}"
-                )
+                bg_cmd = f"{{\\an7\\pos(0,0)\\p1\\c&H000000&\\1a&H70&\\bord0\\shad0}}{box_path}{{\\p0}}"
+                event_lines.append(f"Dialogue: 0,{start_str},{end_str},BgBox,,0,0,0,,{bg_cmd}")
                 event_lines.append(
                     f"Dialogue: 1,{start_str},{end_str},Default,,0,0,0,,{{\\an2\\pos({text_x},{text_y})}}{formatted}"
                 )
@@ -374,15 +377,16 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
             if is_white_box:
                 box_path = _build_rounded_box_ass_path(box_x0, box_y0, box_w, box_h, r)
+                bg_cmd = f"{{\\an7\\pos(0,0)\\p1\\c&H000000&\\1a&H70&\\bord0\\shad0}}{box_path}{{\\p0}}"
+                event_lines.append(f"Dialogue: 0,{start_str},{end_str},BgBox,,0,0,0,,{bg_cmd}")
                 event_lines.append(
-                    f"Dialogue: 0,{start_str},{end_str},BgBox,,0,0,0,,{{\\an7\\pos(0,0)\\p1\\c&H000000&\\1a&H70&\\bord0\\shad0}}{box_path}{{\\p0}}"
-                )
-                event_lines.append(
-                    f"Dialogue: 1,{start_str},{end_str},Default,,0,0,0,,{{\\an2\\pos({text_x},{text_y})}}{text_tag}{clean_t}"
+                    f"Dialogue: 1,{start_str},{end_str},Default,,0,0,0,,"
+                    f"{{\\an2\\pos({text_x},{text_y})}}{text_tag}{clean_t}"
                 )
             else:
                 event_lines.append(
-                    f"Dialogue: 0,{start_str},{end_str},Default,,0,0,0,,{{\\an2\\pos({text_x},{text_y})}}{text_tag}{clean_t}"
+                    f"Dialogue: 0,{start_str},{end_str},Default,,0,0,0,,"
+                    f"{{\\an2\\pos({text_x},{text_y})}}{text_tag}{clean_t}"
                 )
 
         else:
@@ -399,9 +403,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
             if is_white_box:
                 box_path = _build_rounded_box_ass_path(box_x0, box_y0, box_w, box_h, r)
-                event_lines.append(
-                    f"Dialogue: 0,{start_str},{end_str},BgBox,,0,0,0,,{{\\an7\\pos(0,0)\\p1\\c&H000000&\\1a&H70&\\bord0\\shad0}}{box_path}{{\\p0}}"
-                )
+                bg_cmd = f"{{\\an7\\pos(0,0)\\p1\\c&H000000&\\1a&H70&\\bord0\\shad0}}{box_path}{{\\p0}}"
+                event_lines.append(f"Dialogue: 0,{start_str},{end_str},BgBox,,0,0,0,,{bg_cmd}")
                 event_lines.append(
                     f"Dialogue: 1,{start_str},{end_str},Default,,0,0,0,,{{\\an2\\pos({text_x},{text_y})}}{clean_t}"
                 )
@@ -510,8 +513,10 @@ def generate_pdf_video(
         padding_after: 朗读完毕后留在当前页的静音留白秒数 (默认 0.8s)
         page_padding: padding_after 别名
         burn_subtitles: 是否将朗读字幕烧录在视频画面上 (默认 True)
-        subtitle_style: 字幕样式 ("white_box" 白字半透明黑底圆角框 或 "black_transparent" 黑字透明底)
-        subtitle_layout: 长句排版方案 ("split_phrases" 标点短句拆分流转 / "double_line" 智能双行 / "single_line_scale" 纯单行不换行)
+        subtitle_layout: 长句排版方案:
+            - "split_phrases": 标点短句拆分流转 (默认)
+            - "double_line": 智能双行
+            - "single_line_scale": 纯单行不换行
         resolution: 最终视频分辨率 (宽, 高) 或 "1080p" / "2k" / "720p", 默认 (1920, 1080)
         music_path: 背景音乐文件路径
         bgm_path: music_path 别名
@@ -920,8 +925,9 @@ def generate_pdf_video(
                 raise RuntimeError(f"Concat 拼接失败: {res_concat.stderr}")
 
             # ============================================================
-            # 步骤 G: BGM 背景音乐铺底 (可选)
+            # 步骤 G: BGM 背景音乐铺底与封面内嵌 (Attached Picture)
             # ============================================================
+            raw_video = temp_dir / "raw_before_cover.mp4"
             if chosen_music_path and Path(chosen_music_path).is_file():
                 logger.debug(f"正在混入背景音乐: {Path(chosen_music_path).name} (音量: {chosen_music_volume})...")
                 afade_start = max(0.0, total_video_duration - 2.0)
@@ -940,14 +946,47 @@ def generate_pdf_video(
                     "-b:a", "192k",
                     "-t", f"{total_video_duration:.3f}",
                     "-movflags", "+faststart",
-                    str(output_path),
+                    str(raw_video),
                 ]
                 res_bgm = subprocess.run(cmd_bgm, capture_output=True, text=True, encoding="utf-8", errors="replace")
                 if res_bgm.returncode != 0:
                     logger.warning(f"BGM 混音失败，回退为无 BGM 视频: {res_bgm.stderr}")
-                    shutil.move(str(merged_video), str(output_path))
+                    raw_video = merged_video
             else:
-                shutil.move(str(merged_video), str(output_path))
+                raw_video = merged_video
+
+            # 内嵌第一页作为 MP4 官方封面流 (attached_pic)，确保各类播放器与系统缩略图均以第一页为准
+            cover_img_path = temp_dir / "fit_0001.jpg"
+            standalone_cover = output_path.with_suffix(".cover.jpg")
+            if cover_img_path.is_file():
+                try:
+                    shutil.copy(str(cover_img_path), str(standalone_cover))
+                except Exception as e:
+                    logger.debug(f"复制独立封面图失败: {e}")
+
+                cmd_cover = [
+                    FFMPEG_BIN, "-y",
+                    "-i", str(raw_video),
+                    "-i", str(cover_img_path),
+                    "-map", "0",
+                    "-map", "1",
+                    "-c", "copy",
+                    "-disposition:v:1", "attached_pic",
+                    "-movflags", "+faststart",
+                    str(output_path),
+                ]
+                res_cover = subprocess.run(
+                    cmd_cover,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                )
+                if res_cover.returncode != 0:
+                    logger.warning(f"内嵌封面失败，使用原视频输出: {res_cover.stderr}")
+                    shutil.move(str(raw_video), str(output_path))
+            else:
+                shutil.move(str(raw_video), str(output_path))
 
             if progress and task_id is not None:
                 progress.advance(task_id)
@@ -962,6 +1001,7 @@ def generate_pdf_video(
 
         return {
             "output": str(output_path),
+            "cover": str(standalone_cover) if standalone_cover.is_file() else None,
             "srt": str(srt_output_path) if srt_output_path.is_file() else None,
             "duration": round(total_video_duration, 2),
             "slides_count": total_slides,

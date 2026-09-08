@@ -211,6 +211,8 @@ def menu_pdf2video():
         )
         print("\n🎉 处理完成!")
         print(f"   🎬 视频文件: {result['output']}")
+        if result.get("cover"):
+            print(f"   🖼️  独立封面: {result['cover']}")
         if result.get("srt"):
             print(f"   📝 SRT 字幕: {result['srt']}")
         print(f"   ⏱️  总时长:   {result['duration']} 秒")
