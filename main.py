@@ -47,6 +47,7 @@ def main():
                 Choice("filter", "🎨 滤镜效果 (Filter)"),
                 Choice("crop", "✂️  裁切比例 (Crop)"),
                 Choice("concat", "🎬 拼接视频 (Concat)"),
+                Choice("compare", "🔲 画面对比 (Compare / Split Screen)"),
                 Choice("slideshow", "📸 幻灯片 (Slideshow)"),
                 Choice("pdf2video", "📄  PDF 转视频 (PDF to Video)"),
                 Choice("bgm", "🎵 添加背景音乐 (BGM)"),
@@ -84,6 +85,9 @@ def main():
         elif module == "pdf2video":
             from menus.pdf2video import menu_pdf2video
             menu_pdf2video()
+        elif module == "compare":
+            from menus.compare import menu_compare
+            menu_compare()
 
         # 需要媒体文件 (视频 + 图片) 的模块
         elif module in ("add_watermark", "convert", "filter", "crop", "subtitle"):

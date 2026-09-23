@@ -30,6 +30,7 @@ OUTPUT_SLIDESHOW = OUTPUT_DIR / "slideshow"
 OUTPUT_PDF_SPLIT = OUTPUT_DIR / "pdf_split"
 OUTPUT_TTS = OUTPUT_DIR / "tts"
 OUTPUT_PDF2VIDEO = OUTPUT_DIR / "pdf2video"
+OUTPUT_COMPARE = OUTPUT_DIR / "compare"
 
 # 音乐目录
 MUSIC_DIR = PROJECT_ROOT / "music"
@@ -123,7 +124,7 @@ def ensure_dirs():
               OUTPUT_CONVERT, OUTPUT_FILTER, OUTPUT_CROP, OUTPUT_CONCAT,
               OUTPUT_BGM, OUTPUT_SUBTITLE, OUTPUT_COMPRESS,
               OUTPUT_SLIDESHOW, OUTPUT_PDF_SPLIT, OUTPUT_TTS,
-              OUTPUT_PDF2VIDEO, MUSIC_DIR]:
+              OUTPUT_PDF2VIDEO, OUTPUT_COMPARE, MUSIC_DIR]:
         d.mkdir(parents=True, exist_ok=True)
 
 
